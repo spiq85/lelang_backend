@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Builder;
 
 class Bid extends Model
 {
+    protected $table = 'bids';
+
+    protected $primaryKey = 'id';
+
     protected $fillable = [
         'batch_id','user_id','bid_amount','submitted_at','status'
     ];
@@ -21,7 +25,7 @@ class Bid extends Model
     public function batch() { return $this->belongsTo(AuctionBatch::class, 'batch_id'); }
     public function user()  { return $this->belongsTo(User::class, 'user_id'); }
 
-    public function scopeValid(Builder $q){ return $q->where('status','valid'); }
+    public function scopeIsValid(Builder $q){ return $q->where('status','valid'); }
 
     public function scopeHighestForBatch(Builder $q, int $batchId){
         return $q->valid()
@@ -29,4 +33,5 @@ class Bid extends Model
             ->orderByDesc('bid_amount')
             ->orderBy('submitted_at'); // tie-break: paling cepat menang
     }
+
 }
