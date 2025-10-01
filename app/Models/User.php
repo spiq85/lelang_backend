@@ -17,10 +17,18 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    protected $table = 'users'
+
+    protected $primaryKey = 'id'
+
     protected $fillable = [
-        'name',
+        'full_name',
         'email',
         'password',
+        'npwp',
+        'phone_number',
+        'role',
+        'is_active',
     ];
 
     /**
@@ -32,6 +40,24 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'created_at' => 'datetime'
+        'updated_at' => 'datetime'
+    ]
+
+    public function products() {
+        return $This->hasMany(Product::class, 'seller_id');
+    }
+
+    public function auctionBatches() {
+        return $this->hasMany(AuctionBatch::class, 'seller_id');
+    }
+
+    public function bids() {
+        return $this->hasMany(Bid::class, 'user_id');
+    }
 
     /**
      * Get the attributes that should be cast.
