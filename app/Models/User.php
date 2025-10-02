@@ -6,20 +6,24 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasName;
+use Filament\Panel;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
 
     /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
      */
-    protected $table = 'users'
+    protected $table = 'users';
 
-    protected $primaryKey = 'id'
+    protected $primaryKey = 'id';
 
     protected $fillable = [
         'full_name',
@@ -43,12 +47,12 @@ class User extends Authenticatable
 
     protected $casts = [
         'is_active' => 'boolean',
-        'created_at' => 'datetime'
+        'created_at' => 'datetime',
         'updated_at' => 'datetime'
-    ]
+    ];
 
     public function products() {
-        return $This->hasMany(Product::class, 'seller_id');
+        return $this->hasMany(Product::class, 'seller_id');
     }
 
     public function auctionBatches() {
@@ -57,6 +61,24 @@ class User extends Authenticatable
 
     public function bids() {
         return $this->hasMany(Bid::class, 'user_id');
+    }
+
+    public function getFilamentName(): string
+    {
+        // selalu string; fallback ke email kalau full_name kosong
+        return $this->full_name ?: ($this->email ?? 'User');
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // atur aturan akses panel kamu di sini
+        return (bool) $this->is_active; // atau: return $this->is_active && $this->hasRole('admin');
+    }
+
+    // Opsional: biar $user->name tetap ada untuk paket lain
+    public function getNameAttribute(): ?string
+    {
+        return $this->full_name;
     }
 
     /**

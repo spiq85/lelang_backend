@@ -22,7 +22,7 @@ class Product extends Model
         'base_price' => 'decimal',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-    ]
+    ];
 
     public function seller() {
         return $this->belongsTo(User::class,'seller_id');
