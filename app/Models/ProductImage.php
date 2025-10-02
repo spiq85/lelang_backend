@@ -12,9 +12,9 @@ class ProductImage extends Model
         return $this->belongsTo(Product::class);
     }
 
-    // Accessor for full image URL
-    public function getImageUrlAttribute($value)
+    protected $appends = ['image_full_url'];
+    public function getImageFullUrlAttribute(): ?string
     {
-        return $value ? asset('storage/' . $value) : null;
+        return $this->image_url ? asset('storage/' . $this->image_url) : null;
     }
 }
