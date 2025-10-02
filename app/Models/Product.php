@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
-    protected $table = 'product';
+    protected $table = 'products';
 
     protected $primaryKey = 'id';
 
@@ -19,7 +19,7 @@ class Product extends Model
     ];
 
     protected $casts = [
-        'base_price' => 'decimal',
+        'base_price' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -36,11 +36,11 @@ class Product extends Model
         return $this->belongsToMany(Category::class, 'product_categories');
     }
 
-    public function auctionBathes() {
+    public function auctionBatches() {
         return $this->hasMany(AuctionBatch::class, 'product_id');
     }
 
     public function coverImage() {
-        return $this->hasOne(Porduct::class)->orderBy('sort_order');
+        return $this->hasOne(ProductImage::class)->orderBy('sort_order');
     }
 }

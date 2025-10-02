@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class AuctionBatch extends Model
 {
+    protected $table = 'auction_batches';
+    protected $primaryKey = 'id';
     protected $fillable = [
         'seller_id','product_id','title','description',
         'bid_increment_rule','reserve_rule',
