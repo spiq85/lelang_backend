@@ -31,7 +31,7 @@ class AuctionBatchController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'start_at' => 'required|date',
-            'end_date' => 'required|date|after:start_at',
+            'end_at' => 'required|date|after:start_at',
             'bid_increment_rule' => 'required|array',
             'reserve_rule' => 'required|string',
             'status' => 'required|in:draft,pending_review,published,closed,cancelled',
@@ -39,9 +39,16 @@ class AuctionBatchController extends Controller
         ]);
 
         $batch = AuctionBatch::create([
-            ...$data,
-            'bid_increment_rule' => $data ['bid_increment_rule'],
-            'reserve_rule' => $data ['reserve_rule'],
+            $request,
+            'seller_id' => $request ['seller_id'],
+            'title' => $request ['title'],
+            'description' => $request ['description'],
+            'start_at' => $request ['start_at'],
+            'end_at' => $request ['end_date'],
+            'bid_increment_rule' => $request ['bid_increment_rule'],
+            'reserve_rule' => $request ['reserve_rule'],
+            'status' => $request ['status'],
+            'created_by' => $request ['created_by'],
         ]);
 
         return response()->json(
@@ -68,7 +75,7 @@ class AuctionBatchController extends Controller
             return [
                 'lot_id' => $lot->id,
                 'lot_number' => $lot->lot_number,
-                'current_highest' => $highes?->bid_amount,
+                'current_highest' => $highest?->bid_amount,
             ];
         });
 
@@ -91,7 +98,7 @@ class AuctionBatchController extends Controller
             'title' => 'sometimes|required|string|max:255',
             'description' => 'sometimes|required|string',
             'start_at' => 'sometimes|date',
-            'end_date' => 'sometimes|date|after:start_at',
+            'end_at' => 'sometimes|date|after:start_at',
             'bid_increment_rule' => 'sometimes|array',
             'reserve_rule' => 'sometimes|array',
             'status' => 'sometimes|in:draft,pending_review,published,closed,cancelled',

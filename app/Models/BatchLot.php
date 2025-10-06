@@ -19,18 +19,18 @@ class BatchLot extends Model
         'reserve_price'  => 'decimal:2',
     ];
 
-    public function batch()   
-    { 
+    public function batch()
+    {
         return $this->belongsTo(AuctionBatch::class, 'batch_id');
     }
 
-    public function product() 
-    { 
+    public function product()
+    {
         return $this->belongsTo(Product::class, 'product_id');
     }
 
     public function bidItems()
-    { 
+    {
         return $this->hasMany(BidItem::class, 'lot_id');
     }
 
@@ -38,4 +38,4 @@ class BatchLot extends Model
     {
         return $this->hasOne(LotWinner::class, 'lot_id');
     }
-}}
+}

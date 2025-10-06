@@ -39,7 +39,7 @@ class AdminWinnerController extends Controller
             [
                 'winner_user_id'=>$data['winner_user_id'],
                 'winning_bid_amount'=>$data['winning_bid_amount'],
-                'chosen_by'=>$r->user()->id,
+                'choosen_by'=>$r->user()->id,
                 'reason'=>$data['reason'] ?? null,
                 'decided_at'=>now(),
             ]

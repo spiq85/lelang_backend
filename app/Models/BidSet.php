@@ -22,20 +22,20 @@ class BidSet extends Model
     ];
 
     public function batch()
-    { 
+    {
         return $this->belongsTo(AuctionBatch::class, 'batch_id');
     }
 
     public function user()
-    { 
+    {
         return $this->belongsTo(User::class, 'user_id');
     }
-    
+
     public function items()
-    { 
+    {
         return $this->hasMany(BidItem::class, 'bid_set_id');
     }
 
     public function scopeValid($q){ return $q->where('status','valid'); }
 }
-}
+
