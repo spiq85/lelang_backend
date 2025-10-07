@@ -38,6 +38,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('user/upload-payment-proof/{bidId}', [UserController::class, 'uploadPaymentProof']);
 
     // Auction Bids
+    Route::get('auction-batches',[AuctionBatchController::class, 'index']);
+    Route::get('auction-batches/{batch}',[AuctionBatchController::class, 'show']);
     Route::post('auction-batches/{batch}/submit-bid-set', [BidSetController::class, 'submit']);
 });
 
