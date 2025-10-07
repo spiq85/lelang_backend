@@ -8,6 +8,7 @@ use App\Filament\Resources\Bids\Pages\ListBids;
 use App\Filament\Resources\Bids\Schemas\BidForm;
 use App\Filament\Resources\Bids\Tables\BidsTable;
 use App\Models\Bid;
+use App\Models\BidSet;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -16,7 +17,7 @@ use Filament\Tables\Table;
 
 class BidResource extends Resource
 {
-    protected static ?string $model = Bid::class;
+    protected static ?string $model = BidSet::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
