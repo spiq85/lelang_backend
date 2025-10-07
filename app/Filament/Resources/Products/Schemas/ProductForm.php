@@ -10,6 +10,8 @@ use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Select;
+use App\Models\Category;
 
 class ProductForm
 {
@@ -26,6 +28,19 @@ class ProductForm
                 ->numeric()
                 ->default(0),
             TextInput::make('status')->required()->default('draft'),
+            Select::make('categories')
+                ->label('Categories')
+                ->relationship('categories','name')
+                ->multiple()
+                ->preload()
+                ->searchable()
+                ->createOptionForm([
+                    TextInput::make('name')
+                        ->required()
+                        ->unique(Category::class, 'name'),
+                ])
+                ->createOptionUsing(fn (array $data) => Category::make($data)->id),
+
 
             Section::make('Images')
                 ->collapsible()
