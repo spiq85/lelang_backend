@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Bid;
+use App\Models\BidSet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -222,7 +222,7 @@ class UserController extends Controller
             'payment_proof' => 'required|image|mimes:jpeg,png,jpg|max:2048'
         ]);
 
-        $bid = Bid::findOrFail($bidId);
+        $bid = Bidset::findOrFail($bidId);
 
         // Check if bid belongs to this user and status is winner
         if ($bid->user_id !== auth()->id() || $bid->status !== 'winner') {

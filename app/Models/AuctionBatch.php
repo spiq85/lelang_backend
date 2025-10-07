@@ -8,34 +8,41 @@ use Illuminate\Database\Eloquent\Builder;
 class AuctionBatch extends Model
 {
     protected $table = 'auction_batches';
-    protected $primaryKey = 'id';
+
+    protected $primayKey = 'id';
+
     protected $fillable = [
-        'seller_id','product_id','title','description',
+        'seller_id','title','description',
         'bid_increment_rule','reserve_rule',
-        'starting_price','reserve_price','status','created_by'
+        'status','created_by','start_at','end_at'
     ];
 
     protected $casts = [
-        'starting_price' => 'decimal:2',
-        'reserve_price'  => 'decimal:2',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'start_at' => 'datetime',
+        'end_at'   => 'datetime',
+        'bid_increment_rule' => 'array', // karena kolom json
+        'reserve_rule'       => 'array', // karena kolom json
     ];
 
-    // Relations
-    public function seller() { return $this->belongsTo(User::class, 'seller_id'); }
-    public function product() { return $this->belongsTo(Product::class, 'product_id'); }
-    public function creator() { return $this->belongsTo(User::class, 'created_by'); }
-    public function bids()    { return $this->hasMany(Bid::class, 'batch_id'); }
-
-    // Scopes
-    public function scopeActive(Builder $q){ return $q->where('status','active'); }
-    public function scopeClosed(Builder $q){ return $q->where('status','closed'); }
-
-    // Helpers: parse rule (karena disimpan text)
-    public function getBidIncrementRuleArrayAttribute(): array {
-        $txt = $this->bid_increment_rule;
-        $data = json_decode($txt, true);
-        return is_array($data) ? $data : ['type' => 'flat', 'step' => 0];
+    public function seller()  
+    { 
+        return $this->belongsTo(User::class, 'seller_id');
     }
+    
+    public function creator()
+    { 
+        return $this->belongsTo(User::class, 'created_by');
+    }
+    
+    public function lots()    
+    { 
+        return $this->hasMany(BatchLot::class, 'batch_id')->orderBy('lot_number');
+    }
+
+    public function bidSets() 
+    { 
+        return $this->hasMany(BidSet::class, 'batch_id');
+    }
+
+    public function scopeActive($q){ return $q->where('status','active'); }
 }

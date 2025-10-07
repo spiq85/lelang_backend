@@ -62,7 +62,7 @@ class User extends Authenticatable
     }
 
     public function bids() {
-        return $this->hasMany(Bid::class, 'user_id');
+        return $this->hasMany(BidSet::class, 'user_id');
     }
 
     public function getFilamentName(): string

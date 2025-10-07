@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuctionBatch;
-use App\Models\Bid;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -15,12 +14,9 @@ class AuctionBatchController extends Controller
      */
     public function index(Request $request)
     {
-        $batches = AuctionBatch::with(['product.images', 'product.categories'])
-            ->when($request->status, function($query, $status) {
-                return $query->where('status', $status);
-            })
-            ->latest()
-            ->paginate($request->get('per_page', 15));
+        $batches = AuctionBatch::with(['lots.product.images', 'lots.product.categories'])
+            ->when($request->status, fn($q,$s)=>$q->where('status',$s))
+            ->latest()->paginate($request->integer('per_page',15));
 
         return response()->json($batches);
     }
@@ -32,24 +28,33 @@ class AuctionBatchController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'seller_id' => 'required|exists:users,id',
-            'product_id' => 'required|exists:products,id',
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'bid_increment_rule' => 'required|string',
+            'start_at' => 'required|date',
+            'end_at' => 'required|date|after:start_at',
+            'bid_increment_rule' => 'required|array',
             'reserve_rule' => 'required|string',
-            'starting_price' => 'required|numeric|min:0',
-            'reserve_price' => 'required|numeric|min:0',
-            'status' => 'draft',
+            'status' => 'required|in:draft,pending_review,published,closed,cancelled',
             'created_by' => 'required|exists:users,id'
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $batch = AuctionBatch::create([
+            $request,
+            'seller_id' => $request ['seller_id'],
+            'title' => $request ['title'],
+            'description' => $request ['description'],
+            'start_at' => $request ['start_at'],
+            'end_at' => $request ['end_date'],
+            'bid_increment_rule' => $request ['bid_increment_rule'],
+            'reserve_rule' => $request ['reserve_rule'],
+            'status' => $request ['status'],
+            'created_by' => $request ['created_by'],
+        ]);
 
-        $batch = AuctionBatch::create($request->all());
-
-        return response()->json($batch->load(['product.images', 'product.categories']), 201);
+        return response()->json(
+            $batch->load(['lots.product.images', 'lots.product.categories']),
+            201
+        );
     }
 
     /**
@@ -57,22 +62,27 @@ class AuctionBatchController extends Controller
      */
     public function show($id)
     {
-        $batch = AuctionBatch::with(['product.images', 'product.categories', 'bids.user'])
+        $batch = AuctionBatch::with(['lots.product.images', 'lots.product.categories', 'bidSets.user'])
             ->findOrFail($id);
 
-        // Get highest bid
-        $highestBid = $batch->bids()->isValid()->orderByDesc('bid_amount')->first();
-
-        // If authenticated, get user's bid for this batch
-        $userBid = null;
-        if (auth()->check()) {
-            $userBid = $batch->bids()->where('user_id', auth()->id())->first();
-        }
+        $lotSummaries = $batch->lots->map(function($lot){
+            $highest = $lot->bidItems()
+                ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
+                ->where('bid_sets.status', 'valid')
+                ->orderByDEsc('bid_amount')
+                ->orderBy('bid_sets.submitted_at')
+                ->first();
+            return [
+                'lot_id' => $lot->id,
+                'lot_number' => $lot->lot_number,
+                'current_highest' => $highest?->bid_amount,
+            ];
+        });
 
         return response()->json([
             'batch' => $batch,
-            'highest_bid' => $highestBid,
-            'user_bid' => $userBid
+            'lots' => $batch->lots,
+            'summaries' => $lotSummaries,
         ]);
     }
 
@@ -83,26 +93,25 @@ class AuctionBatchController extends Controller
     {
         $batch = AuctionBatch::findOrFail($id);
 
-        $validator = Validator::make($request->all(), [
+        $data = $request->validate([
             'seller_id' => 'sometimes|required|exists:users,id',
-            'product_id' => 'sometimes|required|exists:products,id',
             'title' => 'sometimes|required|string|max:255',
             'description' => 'sometimes|required|string',
-            'bid_increment_rule' => 'sometimes|required|string',
-            'reserve_rule' => 'sometimes|required|string',
-            'starting_price' => 'sometimes|required|numeric|min:0',
-            'reserve_price' => 'sometimes|required|numeric|min:0',
-            'status' => 'sometimes|required|in:draft,active,closed,cancelled',
+            'start_at' => 'sometimes|date',
+            'end_at' => 'sometimes|date|after:start_at',
+            'bid_increment_rule' => 'sometimes|array',
+            'reserve_rule' => 'sometimes|array',
+            'status' => 'sometimes|in:draft,pending_review,published,closed,cancelled',
             'created_by' => 'sometimes|required|exists:users,id'
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $batch->update($data);
 
-        $batch->update($request->all());
-
-        return response()->json($batch->load(['product.images', 'product.categories']));
+        return response()->json(
+            $batch->load([
+                'lots.product.images', 'lots.product.categories'
+            ])
+        );
     }
 
     /**
@@ -110,71 +119,11 @@ class AuctionBatchController extends Controller
      */
     public function destroy($id)
     {
-        $batch = AuctionBatch::findOrFail($id);
-
-        // Delete all bids related to this batch
-        $batch->bids()->delete();
+        $batch = AuctionBatch::with('lots', 'bidSets')->findOrFail($id);
 
         // Delete batch
         $batch->delete();
 
         return response()->json(['message' => 'Auction batch deleted successfully']);
-    }
-
-    /**
-     * Place a bid on an auction batch.
-     */
-    public function placeBid(Request $request, $id)
-    {
-        $request->validate([
-            'bid_amount' => 'required|numeric|min:0'
-        ]);
-
-        $batch = AuctionBatch::findOrFail($id);
-
-        // Check if batch is still active
-        if ($batch->status !== 'active') {
-            return response()->json([
-                'message' => 'Auction for this batch is closed'
-            ], 400);
-        }
-
-        // Get current highest bid
-        $highestBid = $batch->bids()->isValid()->orderByDesc('bid_amount')->first();
-        $currentHighest = $highestBid ? $highestBid->bid_amount : $batch->starting_price;
-
-        // Validate bid amount
-        $bidAmount = $request->bid_amount;
-        if ($bidAmount <= $currentHighest) {
-            return response()->json([
-                'message' => 'Bid must be higher than the current highest bid',
-                'current_highest' => $currentHighest
-            ], 422);
-        }
-
-        // Check increment rule
-        $incrementRule = $batch->getBidIncrementRuleArrayAttribute();
-        if ($incrementRule['type'] === 'flat' && $bidAmount < $currentHighest + $incrementRule['step']) {
-            return response()->json([
-                'message' => 'Bid must be at least ' . ($currentHighest + $incrementRule['step']),
-                'min_bid' => $currentHighest + $incrementRule['step']
-            ], 422);
-        }
-
-        // Create bid
-        $bid = new Bid([
-            'batch_id' => $batch->id,
-            'user_id' => auth()->id(),
-            'bid_amount' => $bidAmount,
-            'submitted_at' => now(),
-            'status' => 'valid'
-        ]);
-
-        $bid->save();
-
-        return response()->json([
-            'message' => 'Bid placed successfully',
-            'bid' => $bid
-        ], 201);
     }
 }
