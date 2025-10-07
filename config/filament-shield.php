@@ -71,7 +71,8 @@ return [
         ],
 
         'widgets' => [
-            'AccountWidget', 'FilamentInfoWidget',
+            'AccountWidget',
+            'FilamentInfoWidget',
         ],
 
         'resources' => [],
@@ -86,5 +87,13 @@ return [
     'register_role_policy' => [
         'enabled' => true,
     ],
+
+    'custom_permissions' => [
+        'send_to_review_auction_batch',
+        'approve_auction_batch',
+        'reject_auction_batch',
+        'close_auction_batch',
+    ],
+
 
 ];
