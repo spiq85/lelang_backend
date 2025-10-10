@@ -36,10 +36,15 @@ class Product extends Model
         return $this->belongsToMany(Category::class, 'product_categories');
     }
 
-    public function auctionBatches() {
-        return $this->hasMany(AuctionBatch::class, 'product_id')
-         ->withPivot(['id', 'note'])
-         ->withTimestamps();
+    public function batchLots() {
+        return $this->hasMany(BatchLot::class, 'product_id');
+    }
+
+    public function batches() {
+        return $this->belongsToMany(AuctionBatch::class, 
+        'batch_lots', 
+        'product_id', 
+        'batch_id')->withPivot(['lot_number', 'starting_price', 'reserve_price', 'status'])->withTimestamps();
     }
 
     public function coverImage() {

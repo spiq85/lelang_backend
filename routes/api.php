@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
+// Product list Without Auth
+Route::get('products/live',[ProductController::class, 'live']);
+
 Route::middleware(['auth:sanctum', 'seller'])->group(function () {
     // CRUD PRODUCT
     Route::apiResource('seller/products', ProductController::class);
@@ -37,9 +40,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('user/auction-history', [UserController::class, 'auctionHistory']);
     Route::post('user/upload-payment-proof/{bidId}', [UserController::class, 'uploadPaymentProof']);
 
-    // User - List Products and Details
-    Route::get('products',[ProductController::class, 'index']);
-    Route::get('products/{product}',[ProductController::class, 'show']);
+    // Detail Product
+    Route::get('products/{product}/detail', [ProductController::class, 'detail']);
 
     // Auction Bids
     Route::get('auction-batches',[AuctionBatchController::class, 'index']);

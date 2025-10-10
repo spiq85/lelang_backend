@@ -13,6 +13,98 @@ class ProductController extends Controller
     /**
      * Display a listing of the resource.
      */
+
+    public function live(Request $request)
+    {
+        $now = now();
+
+        $query = Product::query()
+            ->where('status','published')
+            ->whereHas('batchLots.batch',function ($b) use ($now) {
+                $b->where('status', 'published')
+                    ->where('start_at', '<=', $now)
+                    ->where('end_at', '>=', $now);
+            })
+            ->with([
+                'images',
+                'categories',
+                'batchLots' => fn($q) => $q->orderBy('lot_number'),
+                'batchLots.batch' => fn($q)=> $q->select('id', 'title', 'start_at', 'end_at', 'status'),
+            ]);
+
+            if ($request->filled('category')) {
+                $slug = $request->string('category');
+                $query->whereHas('categories', fn($q) => $q->where('slug', $slug));
+            }
+
+            if ($request->filled('q')) {
+                $term = $request->string('q');
+                $query->where(function($w) use ($term){
+                    $w->where('product_name', 'like', "%{$term}%")
+                        ->orWhere('description', 'like', "%{$term}%");
+                });
+            }
+
+            $query->latest('products.created_at');
+
+            return response()->json(
+                $query->paginate($request->get('per_page', 12))
+            );
+    }
+
+    public function detail(Product $product)
+    {
+        $product->load(['images', 'categories']);
+
+        $now = now();
+
+        $onGoingBatch = $product->batches()
+            ->where('status', 'published')
+            ->where('start_at', '<=', $now)
+            ->where('end_at', '>=', $now)
+            ->orderBy('start_at')
+            ->first();
+
+        $nextBatch = null;
+        if (!$onGoingBatch) {
+            $nextBatch = $product->batches()
+                ->where('status', 'published')
+                ->where('start_at', '>', $now)
+                ->orderBy('start_at')
+                ->first();
+        }
+
+        $activeBatch = $onGoingBatch ?: $nextBatch;
+
+        $lots = [];
+        if ($activeBatch) {
+            $lots = $product->batchLots()
+                ->where('batch_id', $activeBatch->id)
+                ->orderBy('lot_number')
+                ->get(['id', 'batch_id', 'product_id', 'lot_number', 'starting_price', 'reserve_price', 'status']);
+        }
+
+        $meta = null;
+        if ($activeBatch) {
+            $meta = [
+                'batch_id' => $activeBatch->id,
+                'title' => $activeBatch->title,
+                'status' => $activeBatch->status,
+                'start_at' => $activeBatch->start_at,
+                'end_at' => $activeBatch->end_at,
+                'is_ongoing' => $activeBatch->start_at <= $now && $now <= $activeBatch->end_at,
+                'start_in_seconds' => $now->lt($activeBatch->start_at) ? $now->diffInSeconds($activeBatch->start_at) : 0,
+                'end_in_seconds' => $now->lt($activeBatch->end_at) ? $now->diffInSeconds($activeBatch->end_at) : 0,
+            ];
+        }
+
+        return response()->json([
+            'product' => $product,
+            'active_batch' => $meta,
+            'lots' => $lots, 
+        ]);
+    }
+
     public function index(Request $request)
     {
         $query = Product::with(['images', 'categories', 'auctionBatches']);
