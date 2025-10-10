@@ -37,6 +37,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('user/auction-history', [UserController::class, 'auctionHistory']);
     Route::post('user/upload-payment-proof/{bidId}', [UserController::class, 'uploadPaymentProof']);
 
+    // User - List Products and Details
+    Route::get('products',[ProductController::class, 'index']);
+    Route::get('products/{product}',[ProductController::class, 'show']);
+
     // Auction Bids
     Route::get('auction-batches',[AuctionBatchController::class, 'index']);
     Route::get('auction-batches/{batch}',[AuctionBatchController::class, 'show']);
