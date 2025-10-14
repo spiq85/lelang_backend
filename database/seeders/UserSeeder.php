@@ -36,5 +36,12 @@ class UserSeeder extends Seeder
             'role' => 'bidder',
             'is_active' => true,
             ]);
+        User::create([
+            'email' => 'admin@example.com',
+            'full_name' => 'admin',
+            'password' => 'passwordadmin',
+            'role' => 'admin',
+            'is_active' => true,
+        ]);
     }
 }
