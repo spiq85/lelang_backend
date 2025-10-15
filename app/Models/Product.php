@@ -44,7 +44,7 @@ class Product extends Model
         return $this->belongsToMany(AuctionBatch::class, 
         'batch_lots', 
         'product_id', 
-        'batch_id')->withPivot(['lot_number', 'starting_price', 'reserve_price', 'status'])->withTimestamps();
+        'batch_id')->withPivot(['lot_number', 'starting_price', 'reserve_price', 'status as lot_status',])->withTimestamps();
     }
 
     public function coverImage() {

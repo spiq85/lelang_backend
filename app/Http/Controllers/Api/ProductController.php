@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuctionBatch;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,17 +20,24 @@ class ProductController extends Controller
         $now = now();
 
         $query = Product::query()
-            ->where('status','published')
+            ->where('products.status','published')
             ->whereHas('batchLots.batch',function ($b) use ($now) {
-                $b->where('status', 'published')
-                    ->where('start_at', '<=', $now)
-                    ->where('end_at', '>=', $now);
+                $b->where('auction_batches.status', 'published')
+                    ->where('auction_batches.start_at', '<=', $now)
+                    ->where('auction_batches.end_at', '>=', $now);
             })
             ->with([
                 'images',
                 'categories',
-                'batchLots' => fn($q) => $q->orderBy('lot_number'),
-                'batchLots.batch' => fn($q)=> $q->select('id', 'title', 'start_at', 'end_at', 'status'),
+                'batches' => fn($q) => $q 
+                    ->select(
+                        'auction_batches.id', 
+                        'auction_batches.title', 
+                        'auction_batches.start_at', 
+                        'auction_batches.end_at', 
+                        'auction_batches.status'
+                    )
+                    ->where('auction_batches.status', 'published'),
             ]);
 
             if ($request->filled('category')) {

@@ -18,6 +18,9 @@ Route::post('login', [AuthController::class, 'login']);
 
 // Product list Without Auth
 Route::get('products/live',[ProductController::class, 'live']);
+Route::get('categories', [CategoryController::class, 'index']);
+
+
 
 Route::middleware(['auth:sanctum', 'seller'])->group(function () {
     // CRUD PRODUCT
@@ -39,6 +42,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('user/change-password', [UserController::class, 'changePassword']);
     Route::get('user/auction-history', [UserController::class, 'auctionHistory']);
     Route::post('user/upload-payment-proof/{bidId}', [UserController::class, 'uploadPaymentProof']);
+
+   
 
     // Detail Product
     Route::get('products/{product}/detail', [ProductController::class, 'detail']);
