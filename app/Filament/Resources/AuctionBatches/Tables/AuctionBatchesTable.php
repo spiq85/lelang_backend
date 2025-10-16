@@ -10,9 +10,9 @@ use Filament\Actions\EditAction as ActionsEditAction;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
-
 use Filament\Forms;
 use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
 class AuctionBatchesTable
@@ -20,11 +20,19 @@ class AuctionBatchesTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(function (Builder $query) {
+                $user = auth()->user();
+
+                if ($user->role === 'seller') {
+                    $query->where('seller_id', $user->id);
+                }
+            })
             ->columns([
-                TextColumn::make('seller_id')
+                TextColumn::make('seller.full_name')
                     ->label('Seller')
-                    ->numeric()
-                    ->sortable(),
+                    ->visible(fn() => in_array(auth()->user()->role, ['seller', 'super_admin']))
+                    ->sortable()
+                    ->searchable(),
 
                 TextColumn::make('product_id')
                     ->label('Product id')
@@ -37,6 +45,18 @@ class AuctionBatchesTable
                     ->alignEnd()
                     ->sortable(),
 
+                TextColumn::make('start_at')
+                    ->label('Start Date')
+                    ->dateTime('d M Y, H:i')
+                    ->sortable()
+                    ->color(fn($record) => $record->start_at > now() ? 'warning' : 'success'),
+
+                TextColumn::make('end_at')
+                    ->label('End Date')
+                    ->dateTime('d M Y, H:i')
+                    ->sortable()
+                    ->color(fn($record) => $record->end_at < now() ? 'danger' : 'info'),
+
                 TextColumn::make('reserve_price')
                     ->label('Reserve price')
                     ->money('IDR', locale: 'id_ID')
@@ -46,7 +66,7 @@ class AuctionBatchesTable
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match ($state) {
                         'draft' => 'gray',
                         'pending_review' => 'warning',
                         'published' => 'success',
@@ -54,7 +74,7 @@ class AuctionBatchesTable
                         'closed' => 'info',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn ($state) => \Illuminate\Support\Str::headline($state ?? 'draft'))
+                    ->formatStateUsing(fn($state) => \Illuminate\Support\Str::headline($state ?? 'draft'))
                     ->sortable()
                     ->alignCenter(),
 
@@ -85,7 +105,6 @@ class AuctionBatchesTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-
             ->filters([
                 SelectFilter::make('status')
                     ->options([
@@ -96,16 +115,14 @@ class AuctionBatchesTable
                         'closed'         => 'Closed',
                     ]),
             ])
-
             ->recordActions([
                 ActionsEditAction::make(),
 
-                // draft/cancelled -> pending_review
                 ActionsAction::make('sendToReview')
                     ->label('Send to Review')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
-                    ->visible(fn ($record) =>
+                    ->visible(fn($record) =>
                         in_array($record->status, ['draft', 'cancelled']) &&
                         Auth::user()->can('send_to_review_auction_batch')
                     )
@@ -118,12 +135,11 @@ class AuctionBatchesTable
                             ->send();
                     }),
 
-                // pending_review -> published
                 ActionsAction::make('approve')
                     ->label('Approve')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn ($record) =>
+                    ->visible(fn($record) =>
                         $record->status === 'pending_review' &&
                         Auth::user()->can('approve_auction_batch')
                     )
@@ -146,12 +162,11 @@ class AuctionBatchesTable
                             ->send();
                     }),
 
-                // pending_review -> draft/cancelled
                 ActionsAction::make('reject')
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn ($record) =>
+                    ->visible(fn($record) =>
                         $record->status === 'pending_review' &&
                         Auth::user()->can('reject_auction_batch')
                     )
@@ -180,12 +195,11 @@ class AuctionBatchesTable
                             ->send();
                     }),
 
-                // published -> closed
                 ActionsAction::make('close')
                     ->label('Close')
                     ->icon('heroicon-o-lock-closed')
                     ->color('gray')
-                    ->visible(fn ($record) =>
+                    ->visible(fn($record) =>
                         $record->status === 'published' &&
                         Auth::user()->can('close_auction_batch')
                     )
@@ -197,22 +211,18 @@ class AuctionBatchesTable
                             ->send();
                     }),
             ])
-
             ->toolbarActions([
                 ActionsBulkActionGroup::make([
                     ActionsDeleteBulkAction::make(),
-
                     ActionsBulkAction::make('bulkApprove')
                         ->label('Approve Selected')
                         ->icon('heroicon-o-check-badge')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->visible(fn () => Auth::user()->can('approve_auction_batch'))
+                        ->visible(fn() => Auth::user()->can('approve_auction_batch'))
                         ->action(function ($records) {
                             foreach ($records as $r) {
-                                if ($r->status !== 'pending_review') {
-                                    continue;
-                                }
+                                if ($r->status !== 'pending_review') continue;
                                 $r->update([
                                     'status'      => 'published',
                                     'approved_by' => Auth::id(),
