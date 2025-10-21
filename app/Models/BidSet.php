@@ -12,7 +12,7 @@ class BidSet extends Model
 
     protected $fillable = [
         'batch_id',
-        'user_id',
+        'user_id',  
         'submitted_at',
         'status'
     ];

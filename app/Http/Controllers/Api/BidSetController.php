@@ -7,84 +7,79 @@ use App\Models\AuctionBatch;
 use App\Models\BidSet;
 use App\Models\BidItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class BidSetController extends Controller
 {
-    public function submit(Request $request, $batchId)
+    /**
+     * Submit bid untuk satu lot
+     */
+    public function submitPerLot(Request $request, $batchId, $lotId)
     {
         $batch = AuctionBatch::with('lots')->findOrFail($batchId);
+        $lot = $batch->lots->firstWhere('id', $lotId);
 
-        // window & status
+        if (!$lot) {
+            return response()->json(['message' => 'Lot tidak ditemukan'], 404);
+        }
+
+        // Cek status batch & waktu
         if ($batch->status !== 'published' || now()->lt($batch->start_at) || now()->gt($batch->end_at)) {
-            return response()->json(['message' => 'Batch not accepting bids'], 400);
+            return response()->json(['message' => 'Batch tidak menerima bid saat ini'], 400);
         }
 
+        // Validasi input
         $payload = $request->validate([
-            'items'               => 'required|array|min:1',
-            'items.*.lot_id'      => 'required|integer|exists:batch_lots,id',
-            'items.*.bid_amount'  => 'required|numeric|min:0',
+            'bid_amount' => 'required|numeric|min:1',
         ]);
-        $items = $payload['items'];
 
-        // must bid ALL open lots in this batch
-        $openLots = $batch->lots()->where('status','open')->pluck('id')->toArray();
-        $incomingLotIds = collect($items)->pluck('lot_id')->unique()->values()->toArray();
+        $bidAmount = (float) $payload['bid_amount'];
 
-        sort($openLots);
-        sort($incomingLotIds);
-        if ($incomingLotIds !== $openLots) {
-            return response()->json(['message' => 'You must bid on ALL open lots in this batch'], 422);
+        // Ambil bid tertinggi sebelumnya
+        $highest = BidItem::where('lot_id', $lot->id)
+            ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
+            ->where('bid_sets.status', 'valid')
+            ->max('bid_amount');
+
+        $baseline = $highest ?? $lot->starting_price;
+        $minInc = 1; // minimal kenaikan bisa disesuaikan
+
+        if ($bidAmount < $baseline + $minInc) {
+            return response()->json([
+                'message' => "Bid minimal adalah " . number_format($baseline + $minInc, 0, ',', '.'),
+            ], 422);
         }
 
-        // per-lot increment check
-        foreach ($items as $it) {
-            $lot = $batch->lots->firstWhere('id', $it['lot_id']);
-            $highest = BidItem::where('lot_id', $lot->id)
-                ->join('bid_sets','bid_sets.id','=','bid_items.bid_set_id')
-                ->where('bid_sets.status','valid')
-                ->max('bid_amount');
-
-            $baseline = $highest ?? $lot->starting_price;
-            $minInc = $this->minIncrement($baseline, $batch->bid_increment_rule ?? []);
-
-            if ($it['bid_amount'] < $baseline + $minInc) {
-                return response()->json([
-                    'message' => "Lot #{$lot->lot_number}: min bid " . ($baseline + $minInc),
-                ], 422);
-            }
-        }
-
-        // store bid set
+        // Buat BidSet untuk user
         $bidSet = BidSet::create([
             'batch_id'     => $batch->id,
-            'user_id'      => $request->user()->id,
+            'user_id'      => Auth::id(),
             'submitted_at' => now(),
             'status'       => 'valid',
         ]);
 
-        foreach ($items as $it) {
-            BidItem::create([
-                'bid_set_id' => $bidSet->id,
-                'lot_id'     => $it['lot_id'],
-                'bid_amount' => $it['bid_amount'],
-            ]);
-        }
+        // Simpan BidItem
+        $bidItem = BidItem::create([
+            'bid_set_id' => $bidSet->id,
+            'lot_id'     => $lot->id,
+            'bid_amount' => $bidAmount,
+        ]);
 
-        return response()->json(['message' => 'Bid set submitted', 'bid_set_id' => $bidSet->id], 201);
+        return response()->json([
+            'message' => 'Bid berhasil dikirim',
+            'bid_set_id' => $bidSet->id,
+            'data' => $bidItem,
+        ], 201);
     }
 
-    private function minIncrement(float $current, array $rule): float
+    /**
+     * Submit bid untuk seluruh batch (opsional)
+     */
+    public function submit(Request $request, $batchId)
     {
-        $type = $rule['type'] ?? 'flat';
-        if ($type === 'flat') return (float)($rule['step'] ?? 0);
-        if ($type === 'percent') return round($current * (($rule['value'] ?? 0) / 100), 2);
-        if ($type === 'tiered' && !empty($rule['steps'])) {
-            foreach ($rule['steps'] as $s) {
-                if (isset($s['lt']) && $current < $s['lt'])  return (float)$s['step'];
-                if (isset($s['lte']) && $current <= $s['lte']) return (float)$s['step'];
-            }
-            return (float)($rule['steps'][array_key_last($rule['steps'])]['step'] ?? 0);
-        }
-        return 0.0;
+        // Placeholder untuk bid seluruh batch (jika diperlukan)
+        return response()->json([
+            'message' => 'Endpoint submit-bid-set belum diimplementasikan penuh'
+        ], 200);
     }
 }

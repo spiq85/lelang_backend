@@ -61,57 +61,76 @@ class ProductController extends Controller
     }
 
     public function detail(Product $product)
-    {
-        $product->load(['images', 'categories']);
+{
+    $now = now();
 
-        $now = now();
+    // eager load agar ga nembak query berkali-kali
+    $product->load(['images', 'categories', 'batches']);
 
-        $onGoingBatch = $product->batches()
-            ->where('status', 'published')
-            ->where('start_at', '<=', $now)
-            ->where('end_at', '>=', $now)
-            ->orderBy('start_at')
+    // cari batch yang lagi jalan
+    $onGoingBatch = $product->batches()
+        ->where('auction_batches.status', 'published')
+        ->where('auction_batches.start_at', '<=', $now)
+        ->where('auction_batches.end_at', '>=', $now)
+        ->orderBy('auction_batches.start_at')
+        ->first();
+
+    // kalau ga ada yang jalan, ambil batch berikutnya
+    $nextBatch = null;
+    if (!$onGoingBatch) {
+        $nextBatch = $product->batches()
+            ->where('auction_batches.status', 'published')
+            ->where('auction_batches.start_at', '>', $now)
+            ->orderBy('auction_batches.start_at')
             ->first();
-
-        $nextBatch = null;
-        if (!$onGoingBatch) {
-            $nextBatch = $product->batches()
-                ->where('status', 'published')
-                ->where('start_at', '>', $now)
-                ->orderBy('start_at')
-                ->first();
-        }
-
-        $activeBatch = $onGoingBatch ?: $nextBatch;
-
-        $lots = [];
-        if ($activeBatch) {
-            $lots = $product->batchLots()
-                ->where('batch_id', $activeBatch->id)
-                ->orderBy('lot_number')
-                ->get(['id', 'batch_id', 'product_id', 'lot_number', 'starting_price', 'reserve_price', 'status']);
-        }
-
-        $meta = null;
-        if ($activeBatch) {
-            $meta = [
-                'batch_id' => $activeBatch->id,
-                'title' => $activeBatch->title,
-                'status' => $activeBatch->status,
-                'start_at' => $activeBatch->start_at,
-                'end_at' => $activeBatch->end_at,
-                'is_ongoing' => $activeBatch->start_at <= $now && $now <= $activeBatch->end_at,
-                'start_in_seconds' => $now->lt($activeBatch->start_at) ? $now->diffInSeconds($activeBatch->start_at) : 0,
-                'end_in_seconds' => $now->lt($activeBatch->end_at) ? $now->diffInSeconds($activeBatch->end_at) : 0,
-            ];
-        }
-
-        return response()->json([
-            'product' => $product,
-            'active_batch' => $meta,
-            'lots' => $lots, 
-        ]);
     }
+
+    // tentuin batch aktif
+    $activeBatch = $onGoingBatch ?: $nextBatch;
+
+    // ambil lot hanya kalau ada batch aktif
+    $lots = collect();
+    if ($activeBatch) {
+        $lots = $product->batchLots()
+            ->where('batch_id', $activeBatch->id)
+            ->orderBy('lot_number')
+            ->get([
+                'id',
+                'batch_id',
+                'product_id',
+                'lot_number',
+                'starting_price',
+                'reserve_price',
+                'status',
+            ]);
+    }
+
+    // meta data batch aktif
+    $meta = null;
+    if ($activeBatch) {
+        $meta = [
+            'batch_id' => $activeBatch->id,
+            'title' => $activeBatch->title,
+            'status' => $activeBatch->status,
+            'start_at' => $activeBatch->start_at,
+            'end_at' => $activeBatch->end_at,
+            'is_ongoing' => $activeBatch->start_at <= $now && $now <= $activeBatch->end_at,
+            'start_in_seconds' => $now->lt($activeBatch->start_at)
+                ? $now->diffInSeconds($activeBatch->start_at)
+                : 0,
+            'end_in_seconds' => $now->lt($activeBatch->end_at)
+                ? $now->diffInSeconds($activeBatch->end_at)
+                : 0,
+        ];
+    }
+
+    return response()->json([
+        'product' => $product,
+        'active_batch' => $meta,
+        'lots' => $lots,
+    ], 200);
+}
+
 
     public function index(Request $request)
     {

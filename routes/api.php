@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AuctionBatchController;
 use App\Http\Controllers\Api\BatchLotController;
@@ -9,70 +10,81 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminBatchController;
-use Illuminate\Support\Facades\Route;
 
-
-// Public routes
+// =======================
+// Public Routes
+// =======================
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-// Product list Without Auth
-Route::get('products/live',[ProductController::class, 'live']);
+// Produk & Kategori tanpa autentikasi
+Route::get('products/live', [ProductController::class, 'live']);
 Route::get('categories', [CategoryController::class, 'index']);
 
-
-
+// =======================
+// Seller Routes
+// =======================
 Route::middleware(['auth:sanctum', 'seller'])->group(function () {
-    // CRUD PRODUCT
+    // CRUD Produk
     Route::apiResource('seller/products', ProductController::class);
-    // CRUD BATCH   
+
+    // CRUD Batch & Lot
     Route::apiResource('seller/auction-batches', AuctionBatchController::class);
     Route::apiResource('seller/auction-batches.lots', BatchLotController::class)->shallow();
 });
 
-// Protected routes (require authentication)
+// =======================
+// User Routes (Authenticated)
+// =======================
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [AuthController::class, 'user']);
 
-    // User - Self
+    // Profile & History
     Route::get('user/profile', [UserController::class, 'profile']);
     Route::put('user/profile', [UserController::class, 'updateProfile']);
     Route::post('user/change-password', [UserController::class, 'changePassword']);
     Route::get('user/auction-history', [UserController::class, 'auctionHistory']);
     Route::post('user/upload-payment-proof/{bidId}', [UserController::class, 'uploadPaymentProof']);
 
-   
-
-    // Detail Product
+    // Product Detail
     Route::get('products/{product}/detail', [ProductController::class, 'detail']);
 
-    // Auction Bids
-    Route::get('auction-batches',[AuctionBatchController::class, 'index']);
-    Route::get('auction-batches/{batch}',[AuctionBatchController::class, 'show']);
+    // =======================
+    // Auction Bidding
+    // =======================
+    Route::get('auction-batches', [AuctionBatchController::class, 'index']);
+    Route::get('auction-batches/{batch}', [AuctionBatchController::class, 'show']);
+
+    // Submit bid untuk seluruh batch (opsional)
     Route::post('auction-batches/{batch}/submit-bid-set', [BidSetController::class, 'submit']);
+
+    // ✅ Tambahan baru: submit bid untuk satu lot
+    Route::post('auction-batches/{batchId}/lots/{lotId}/submit-bid', [BidSetController::class, 'submitPerLot']);
 });
 
-// Admin routes (require authentication and admin role)
+// =======================
+// Admin Routes
+// =======================
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
-    // Products - CRUD
+    // CRUD Produk
     Route::apiResource('admin/products', ProductController::class);
 
-    // Auction Batches - CRUD
+    // CRUD Batch
     Route::apiResource('admin/auction-batches', AuctionBatchController::class);
 
-    // Categories - CRUD
+    // CRUD Kategori
     Route::apiResource('admin/categories', CategoryController::class);
 
-    // Users - CRUD
+    // CRUD Users
     Route::apiResource('admin/users', UserController::class);
 
-    // Approve Batch
+    // Kelola Status Batch
     Route::post('admin/auction-batches/{batch}/approve', [AdminBatchController::class, 'approve']);
     Route::post('admin/auction-batches/{batch}/publish', [AdminBatchController::class, 'publish']);
     Route::post('admin/auction-batches/{batch}/close', [AdminBatchController::class, 'close']);
 
-    // Select Winner
-    Route::post('admin/lots/{lotId}/select-winner', [AdminWinnerController::class,'select']);
+    // Pilih pemenang lot
+    Route::post('admin/lots/{lotId}/select-winner', [AdminWinnerController::class, 'select']);
 });
