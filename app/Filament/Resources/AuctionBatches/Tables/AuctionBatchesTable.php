@@ -17,7 +17,6 @@ use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Notification as FacadesNotification;
 
 class AuctionBatchesTable
 {
@@ -144,25 +143,52 @@ class AuctionBatchesTable
                         // === Notifikasi ke seller batch ini ===
                         $seller = User::find($record->seller_id);
                         if ($seller) {
+                            // Kirim database notification
                             $seller->notify(new AuctionBatchStatusNotification(
                                 'Approved',
                                 "Your auction batch ID {$record->id} has been approved by admin.",
                                 $record->id
                             ));
+
+                            // Kirim Filament notification (langsung muncul di UI)
+                            Notification::make()
+                                ->title('Auction Batch Approved')
+                                ->body("Your auction batch ID {$record->id} has been approved.")
+                                ->success()
+                                ->icon('heroicon-o-check-circle')
+                                ->sendToDatabase($seller);
+
                             Log::info("✅ Notification sent to seller ID: {$seller->id}");
                         } else {
                             Log::warning("⚠️ Seller not found for batch ID {$record->id}");
                         }
 
-                        // === Notifikasi ke semua seller ===
-                        $sellers = User::where('role', 'seller')->get();
-                        FacadesNotification::send($sellers, new AuctionBatchStatusNotification(
-                            'Started',
-                            'A new auction has been published!',
-                            $record->id
-                        ));
-                        Log::info("📢 Notification broadcasted to all sellers.");
+                        // === Notifikasi ke semua seller lain (auction baru dimulai) ===
+                        $otherSellers = User::where('role', 'seller')
+                            ->where('id', '!=', $record->seller_id)
+                            ->where('is_active', true)
+                            ->get();
 
+                        foreach ($otherSellers as $otherSeller) {
+                            // Database notification
+                            $otherSeller->notify(new AuctionBatchStatusNotification(
+                                'Started',
+                                'A new auction has been published!',
+                                $record->id
+                            ));
+
+                            // Filament notification
+                            Notification::make()
+                                ->title('New Auction Available')
+                                ->body('A new auction has been published. Check it out!')
+                                ->info()
+                                ->icon('heroicon-o-megaphone')
+                                ->sendToDatabase($otherSeller);
+                        }
+
+                        Log::info("📢 Notification broadcasted to " . $otherSellers->count() . " sellers.");
+
+                        // Notifikasi ke admin yang melakukan approve
                         Notification::make()
                             ->title('Batch approved & published.')
                             ->success()
@@ -201,11 +227,21 @@ class AuctionBatchesTable
 
                         $seller = User::find($record->seller_id);
                         if ($seller) {
+                            // Database notification
                             $seller->notify(new AuctionBatchStatusNotification(
                                 'Rejected',
                                 "Your auction batch ID {$record->id} was rejected. Reason: {$data['reason']}",
                                 $record->id
                             ));
+
+                            // Filament notification
+                            Notification::make()
+                                ->title('Auction Batch Rejected')
+                                ->body("Your auction batch ID {$record->id} was rejected.")
+                                ->danger()
+                                ->icon('heroicon-o-x-circle')
+                                ->sendToDatabase($seller);
+
                             Log::info("❌ Rejection notification sent to seller ID: {$seller->id}");
                         }
 
@@ -228,6 +264,7 @@ class AuctionBatchesTable
                     ->requiresConfirmation()
                     ->action(function ($record) {
                         $record->update(['status' => 'closed']);
+                        
                         Notification::make()
                             ->title('Batch closed.')
                             ->send();
@@ -243,17 +280,38 @@ class AuctionBatchesTable
                         ->requiresConfirmation()
                         ->visible(fn() => Auth::user()->can('approve_auction_batch'))
                         ->action(function ($records) {
+                            $approvedCount = 0;
+                            
                             foreach ($records as $r) {
                                 if ($r->status !== 'pending_review') continue;
+                                
                                 $r->update([
                                     'status'      => 'published',
                                     'approved_by' => Auth::id(),
                                     'approved_at' => now(),
                                 ]);
+
+                                // Notifikasi ke seller
+                                $seller = User::find($r->seller_id);
+                                if ($seller) {
+                                    $seller->notify(new AuctionBatchStatusNotification(
+                                        'Approved',
+                                        "Your auction batch ID {$r->id} has been approved.",
+                                        $r->id
+                                    ));
+
+                                    Notification::make()
+                                        ->title('Auction Approved')
+                                        ->body("Batch ID {$r->id} approved")
+                                        ->success()
+                                        ->sendToDatabase($seller);
+                                }
+
+                                $approvedCount++;
                             }
 
                             Notification::make()
-                                ->title('Selected batches approved.')
+                                ->title("$approvedCount batch(es) approved successfully.")
                                 ->success()
                                 ->send();
                         }),

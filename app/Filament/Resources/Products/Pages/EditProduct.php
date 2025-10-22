@@ -10,10 +10,14 @@ class EditProduct extends EditRecord
 {
     protected static string $resource = ProductResource::class;
 
-    protected function getHeaderActions(): array
+    protected function mutateFormDataBeforeSave(array $data): array
     {
-        return [
-            DeleteAction::make(),
-        ];
+        $user = auth()->user();
+
+        if ($user && $user->role === 'seller') {
+            $data['seller_id'] = $user->id;
+        }
+
+        return $data;
     }
 }
