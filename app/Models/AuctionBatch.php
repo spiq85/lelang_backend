@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use App\Notifications\AuctionBatchStatusNotification;
 
 class AuctionBatch extends Model
 {
@@ -23,42 +24,92 @@ class AuctionBatch extends Model
         'end_at',
         'approved_by',
         'approved_at',
-        'review_note'
+        'review_note',
     ];
 
     protected $casts = [
-        'start_at' => 'datetime',
-        'end_at'   => 'datetime',
-        'approved_at' => 'datetime',
-        'bid_increment_rule' => 'array', // karena kolom json
-        'reserve_rule'       => 'array', // karena kolom json
+        'start_at'          => 'datetime',
+        'end_at'            => 'datetime',
+        'approved_at'       => 'datetime',
+        'bid_increment_rule'=> 'array',
+        'reserve_rule'      => 'array',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Booted Events
+    |--------------------------------------------------------------------------
+    */
+    protected static function booted(): void
+    {
+        // Otomatis buat 1 lot kosong saat seller membuat batch baru
+        static::created(function (self $batch) {
+            $batch->lots()->create([
+                'lot_number'     => 1,
+                'starting_price' => 0,
+                'reserve_price'  => null,
+                'status'         => 'open',
+                'product_id'     => null,
+            ]);
+        });
+
+        // Kirim notifikasi setiap kali status batch berubah
+        static::updated(function (self $batch) {
+            if (!$batch->wasChanged('status')) return;
+
+            match ($batch->status) {
+                'pending_review' => self::notifyAdminsPendingReview($batch),
+                'published'      => self::notifySellerApproved($batch),
+                'cancelled'      => self::notifySellerRejected($batch),
+                default          => null,
+            };
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notification Helpers
+    |--------------------------------------------------------------------------
+    */
+    protected static function notifyAdminsPendingReview(self $batch): void
+    {
+        $admins = \App\Models\User::role('super_admin')->get();
+
+        foreach ($admins as $admin) {
+            $admin->notify(new AuctionBatchStatusNotification(
+                'Pending Review',
+                "Seller {$batch->seller->full_name} mengirim batch \"{$batch->title}\" untuk direview.",
+                $batch->id,
+            ));
+        }
+    }
+
+    protected static function notifySellerApproved(self $batch): void
+    {
+        $batch->seller->notify(new AuctionBatchStatusNotification(
+            'Approved',
+            "Batch \"{$batch->title}\" sudah disetujui oleh admin.",
+            $batch->id,
+        ));
+    }
+
+    protected static function notifySellerRejected(self $batch): void
+    {
+        $batch->seller->notify(new AuctionBatchStatusNotification(
+            'Rejected',
+            "Batch \"{$batch->title}\" ditolak oleh admin.",
+            $batch->id,
+        ));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
-    }
-
-    // Helper state machine sederhana (opsional)
-    public function canSendToReview(): bool
-    {
-        return in_array($this->status, ['draft', 'cancelled']);
-    }
-    public function canApprove(): bool
-    {
-        return $this->status === 'pending_review';
-    }
-    public function canReject(): bool
-    {
-        return $this->status === 'pending_review';
-    }
-    public function canPublish(): bool
-    {
-        return $this->status === 'pending_review';
-    } // alias approve
-    public function canClose(): bool
-    {
-        return $this->status === 'published';
     }
 
     public function seller()
@@ -81,8 +132,38 @@ class AuctionBatch extends Model
         return $this->hasMany(BidSet::class, 'batch_id');
     }
 
-    public function scopeActive($q)
+    /*
+    |--------------------------------------------------------------------------
+    | Scopes & State Helpers
+    |--------------------------------------------------------------------------
+    */
+    public function scopeActive(Builder $query): Builder
     {
-        return $q->where('status', 'published');
+        return $query->where('status', 'published');
+    }
+
+    public function canSendToReview(): bool
+    {
+        return in_array($this->status, ['draft', 'cancelled']);
+    }
+
+    public function canApprove(): bool
+    {
+        return $this->status === 'pending_review';
+    }
+
+    public function canReject(): bool
+    {
+        return $this->status === 'pending_review';
+    }
+
+    public function canPublish(): bool
+    {
+        return $this->status === 'pending_review';
+    }
+
+    public function canClose(): bool
+    {
+        return $this->status === 'published';
     }
 }

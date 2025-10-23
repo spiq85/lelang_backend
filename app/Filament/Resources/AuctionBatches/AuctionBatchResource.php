@@ -13,14 +13,15 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class AuctionBatchResource extends Resource
 {
     protected static ?string $model = AuctionBatch::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
 
-    protected static ?string $recordTitleAttribute = 'id';
+    protected static ?string $recordTitleAttribute = 'title';
 
     public static function form(Schema $schema): Schema
     {
@@ -32,11 +33,14 @@ class AuctionBatchResource extends Resource
         return AuctionBatchesTable::configure($table);
     }
 
-    public static function getRelations(): array
+    public static function getEloquentQuery(): Builder
     {
-        return [
-            //
-        ];
+        $user = auth()->user();
+
+        return parent::getEloquentQuery()
+            ->when($user->role === 'seller', function ($query) use ($user) {
+                $query->where('seller_id', $user->id);
+            });
     }
 
     public static function getPages(): array

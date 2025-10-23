@@ -10,7 +10,7 @@ return new class extends Migration {
             $t->id();
 
             $t->foreignId('batch_id')->constrained('auction_batches')->cascadeOnDelete();
-            $t->foreignId('product_id')->constrained('products')->restrictOnDelete();
+            $t->foreignId('product_id')->constrained('products')->nullable()->restrictOnDelete();
 
             // Penomoran lot unik per batch (Lot #1, #2, ...)
             $t->unsignedInteger('lot_number');

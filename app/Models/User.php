@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
@@ -10,21 +9,13 @@ use Illuminate\Notifications\Notifiable;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasName;
 use Filament\Panel;
-use Illuminate\Testing\Fluent\Concerns\Has;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser, HasName
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasApiTokens, HasRoles;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $table = 'users';
-
     protected $primaryKey = 'id';
 
     protected $fillable = [
@@ -37,11 +28,6 @@ class User extends Authenticatable
         'is_active',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
@@ -53,41 +39,45 @@ class User extends Authenticatable
         'updated_at' => 'datetime',
     ];
 
-    public function products() {
+    // =====================
+    // 🔹 Relationships
+    // =====================
+    public function products()
+    {
         return $this->hasMany(Product::class, 'seller_id');
     }
 
-    public function auctionBatches() {
+    public function auctionBatches()
+    {
         return $this->hasMany(AuctionBatch::class, 'seller_id');
     }
 
-    public function bids() {
+    public function bids()
+    {
         return $this->hasMany(BidSet::class, 'user_id');
     }
 
+    // =====================
+    // 🔹 Filament integration
+    // =====================
     public function getFilamentName(): string
     {
-        // selalu string; fallback ke email kalau full_name kosong
+        // harus selalu mengembalikan string, tidak boleh null
         return $this->full_name ?: ($this->email ?? 'User');
     }
 
     public function canAccessPanel(Panel $panel): bool
     {
-        // atur aturan akses panel kamu di sini
-        return (bool) $this->is_active; // atau: return $this->is_active && $this->hasRole('admin');
+        // misal, hanya user aktif yang bisa login
+        return (bool) $this->is_active;
     }
 
-    // Opsional: biar $user->name tetap ada untuk paket lain
+    // Opsional fallback untuk kompatibilitas paket lain
     public function getNameAttribute(): ?string
     {
         return $this->full_name;
     }
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
