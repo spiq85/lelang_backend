@@ -2,16 +2,15 @@
 
 namespace App\Filament\Resources\AuctionBatches\Tables;
 
-use Filament\Tables;
-use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Notifications\Notification;
+use App\Models\User;
+use App\Notifications\AuctionBatchStatusNotification;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Notifications\Notification;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use App\Notifications\AuctionBatchStatusNotification;
-use App\Models\User;
 
 class AuctionBatchesTable
 {
@@ -20,28 +19,38 @@ class AuctionBatchesTable
         return $table
             ->modifyQueryUsing(function (Builder $query) {
                 $user = auth()->user();
+
                 if ($user->role === 'seller') {
                     $query->where('seller_id', $user->id);
-                } else {
-                    $query->whereNot('status', 'draft');
                 }
             })
             ->columns([
-                TextColumn::make('title')->label('Batch Title')->sortable()->searchable(),
-                TextColumn::make('status')->badge()->colors([
-                    'gray'     => 'draft',
-                    'warning'  => 'pending_review',
-                    'success'  => 'published',
-                    'danger'   => 'cancelled',
-                ]),
-                TextColumn::make('start_at')->dateTime()->label('Start'),
-                TextColumn::make('end_at')->dateTime()->label('End'),
-                TextColumn::make('seller.full_name')->label('Seller'),
+                TextColumn::make('title')
+                    ->label('Batch Title')
+                    ->sortable()
+                    ->searchable(),
+
+                TextColumn::make('status')
+                    ->badge()
+                    ->label('Status')
+                    ->formatStateUsing(fn (string $state) => ucfirst(str_replace('_', ' ', $state)))
+                    ->colors([
+                        'gray' => 'draft',
+                        'warning' => 'pending_review',
+                        'success' => 'published',
+                        'danger' => 'cancelled',
+                        'secondary' => 'closed',
+                    ])
+                    ->sortable(),
+
+                TextColumn::make('start_at')->label('Start')->dateTime(),
+                TextColumn::make('end_at')->label('End')->dateTime(),
+                TextColumn::make('seller.full_name')->label('Seller')->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
                 EditAction::make(),
 
-                // ✅ Seller: Send for Review
+                // Seller: Send for Review
                 Action::make('send_review')
                     ->label('Send for Review')
                     ->icon('heroicon-o-paper-airplane')
@@ -62,15 +71,14 @@ class AuctionBatchesTable
 
                         $record->update(['status' => 'pending_review']);
 
-                        // 🔔 Notify Admins
-                        $admins = User::role('super_admin')->get();
-                        foreach ($admins as $admin) {
+                        // Notify Admins
+                        User::role('super_admin')->each(function ($admin) use ($record) {
                             $admin->notify(new AuctionBatchStatusNotification(
                                 'Pending Review',
                                 "Seller {$record->seller->full_name} mengirim batch \"{$record->title}\" untuk direview.",
                                 $record->id
                             ));
-                        }
+                        });
 
                         Notification::make()
                             ->title('Batch Sent for Review')
@@ -79,19 +87,22 @@ class AuctionBatchesTable
                             ->send();
                     }),
 
-                // ✅ Admin: Approve
+                // Admin: Approve
                 Action::make('approve')
                     ->label('Approve')
-                    ->icon('heroicon-o-check')
+                    ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->requiresConfirmation()
                     ->visible(fn ($record) =>
                         auth()->user()->role !== 'seller' && $record->status === 'pending_review'
                     )
+                    ->requiresConfirmation()
                     ->action(function ($record) {
-                        $record->update(['status' => 'published']);
+                        $record->update([
+                            'status' => 'published',
+                            'approved_by' => auth()->id(),
+                            'approved_at' => now(),
+                        ]);
 
-                        // Notify seller
                         $record->seller->notify(new AuctionBatchStatusNotification(
                             'Approved',
                             "Batch \"{$record->title}\" sudah disetujui oleh admin.",
@@ -105,15 +116,15 @@ class AuctionBatchesTable
                             ->send();
                     }),
 
-                // ✅ Admin: Reject
+                // Admin: Reject
                 Action::make('reject')
                     ->label('Reject')
-                    ->icon('heroicon-o-x-mark')
+                    ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->requiresConfirmation()
                     ->visible(fn ($record) =>
                         auth()->user()->role !== 'seller' && $record->status === 'pending_review'
                     )
+                    ->requiresConfirmation()
                     ->action(function ($record) {
                         $record->update(['status' => 'cancelled']);
 

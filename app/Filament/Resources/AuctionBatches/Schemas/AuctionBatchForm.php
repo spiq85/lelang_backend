@@ -16,12 +16,13 @@ class AuctionBatchForm
                 Select::make('seller_id')
                     ->label('Seller')
                     ->relationship('seller', 'full_name')
-                    ->visible(fn() => in_array(auth()->user()->role, ['seller', 'super_admin']))
                     ->searchable()
                     ->preload()
                     ->default(fn() => auth()->id())
-                    ->disabled()
-                    ->dehydrated(),
+                    ->disabled(fn() => auth()->user()->role === 'seller') // seller tidak boleh ubah seller_id
+                    ->dehydrated(true) // tetap simpan nilai meskipun disabled
+                    ->visible(fn() => in_array(auth()->user()->role, ['seller', 'super_admin'])),
+
                 Forms\Components\TextInput::make('title')
                     ->label('Batch Title')
                     ->required(),
@@ -48,7 +49,7 @@ class AuctionBatchForm
                         'cancelled' => 'Cancelled',
                     ])
                     ->default('draft')
-                    ->disabled(fn () => auth()->user()->role === 'seller'),
+                    ->disabled(fn() => auth()->user()->role === 'seller'),
             ]);
     }
 }

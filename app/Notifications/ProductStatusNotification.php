@@ -2,13 +2,10 @@
 
 namespace App\Notifications;
 
-use Filament\Actions\Action as ActionsAction;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
-use Filament\Notifications\Notification as FilamentNotification;
 
-class ProductStatusNotification extends Notification implements ShouldQueue
+class ProductStatusNotification extends Notification
 {
     use Queueable;
 
@@ -16,11 +13,12 @@ class ProductStatusNotification extends Notification implements ShouldQueue
         public string $status,
         public string $message,
         public ?int $productId = null,
+        public ?string $senderRole = null,
     ) {}
 
     public function via($notifiable): array
     {
-        return ['database'];
+        return ['database']; // Simpan ke tabel notifications
     }
 
     public function toDatabase($notifiable): array
@@ -32,19 +30,7 @@ class ProductStatusNotification extends Notification implements ShouldQueue
             'status' => $this->status,
             'icon' => $this->getIcon(),
             'iconColor' => $this->getColor(),
-            'actions' => $this->getActions(),
         ];
-    }
-
-    public function toFilament($notifiable): FilamentNotification
-    {
-        return FilamentNotification::make()
-            ->title("Product {$this->status}")
-            ->body($this->message)
-            ->icon($this->getIcon())
-            ->iconColor($this->getColor())
-            ->actions($this->getActions())
-            ->duration(5000);
     }
 
     private function getIcon(): string
@@ -67,19 +53,5 @@ class ProductStatusNotification extends Notification implements ShouldQueue
             'draft' => 'gray',
             default => 'primary',
         };
-    }
-
-    private function getActions(): array
-    {
-        if (!$this->productId) {
-            return [];
-        }
-
-        return [
-            ActionsAction::make('view')
-                ->label('View Product')
-                ->url(route('filament.admin.resources.products.view', ['record' => $this->productId]))
-                ->button(),
-        ];
     }
 }

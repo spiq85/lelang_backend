@@ -9,19 +9,21 @@ use App\Filament\Resources\BatchLots\Schemas\BatchLotForm;
 use App\Filament\Resources\BatchLots\Tables\BatchLotsTable;
 use App\Models\BatchLot;
 use BackedEnum;
+use Carbon\Unit;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use UnitEnum;
 
 class BatchLotResource extends Resource
 {
     protected static ?string $model = BatchLot::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-
     protected static ?string $recordTitleAttribute = 'lot_number';
+    protected static string|UnitEnum|null $navigationGroup = 'Auction Management';
 
     public static function form(Schema $schema): Schema
     {
@@ -46,9 +48,9 @@ class BatchLotResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListBatchLots::route('/'),
+            'index'  => ListBatchLots::route('/'),
             'create' => CreateBatchLot::route('/create'),
-            'edit' => EditBatchLot::route('/{record}/edit'),
+            'edit'   => EditBatchLot::route('/{record}/edit'),
         ];
     }
 }
