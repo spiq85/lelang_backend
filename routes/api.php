@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminBatchController;
+use App\Http\Controllers\Api\NotificationController;
 
 // =======================
 // Public Routes
@@ -31,6 +32,11 @@ Route::middleware(['auth:sanctum', 'seller'])->group(function () {
     // CRUD Batch & Lot
     Route::apiResource('seller/auction-batches', AuctionBatchController::class);
     Route::apiResource('seller/auction-batches.lots', BatchLotController::class)->shallow();
+    
+    Route::get('me/notifications', [NotificationController::class, 'index']);
+    Route::get('me/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::post('me/notifications/{id}/mark-read', [NotificationController::class, 'markRead']);
+    Route::post('me/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
 });
 
 // =======================

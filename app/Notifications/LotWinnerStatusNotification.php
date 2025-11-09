@@ -14,19 +14,30 @@ class LotWinnerNotification extends Notification implements ShouldQueue
 
     public function __construct(public LotWinner $winner)
     {
+        $this->winner = $winner->loadMissing(['lot.batch']);
     }
 
-    public function via($notifiable)
+    public function via($notifiable): array
     {
         return ['database'];
     }
 
-    public function toDatabase($notifiable): DatabaseMessage
+    public function toDatabase($notifiable): array
     {
-        return new DatabaseMessage([
-            'title' => 'Congratulations! You won a lot!',
-            'message' => "You won lot #{$this->winner->lot->lot_number} in batch '{$this->winner->lot->batch->title}'.",
-            'url' => route('filament.resources.batch-lots.edit', ['record' => $this->winner->lot_id]),
-        ]);
+        $lot = $this->winner->lot;
+        $batch = $lot?->batch;
+
+        return [
+            'type' => 'lot_winner',
+            'batch_id' => $batch?->id,
+            'batch_title' => $batch?->title,
+            'lot_id' => $lot?->id,
+            'lot_number' => $lot?->lot_number,
+            'amount' => $this->winner->winning_bid_amount,
+            'deeplink' => $batch && $lot ? "/batches/{$batch->id}/lots/{$lot->id}" : null,
+            'message' => $batch && $lot
+                ? "Selamat! Kamu menang Lot #{$lot->lot_number} di '{$batch->title}'."
+                : 'Selamat! Kamu memenangkan salah satu lot.',
+        ];
     }
 }
