@@ -16,7 +16,19 @@ class AuctionBatchController extends Controller
     {
         $batches = AuctionBatch::with(['lots.product.images', 'lots.product.categories'])
             ->when($request->status, fn($q,$s)=>$q->where('status',$s))
-            ->latest()->paginate($request->integer('per_page',15));
+            ->latest()
+            ->paginate($request->integer('per_page',15));
+
+        // map tambahan countdown per item
+        $batches->getCollection()->transform(function ($b) {
+            return array_merge($b->toArray(), [
+                'now' => now()->toIso8601String(),
+                'phase' => $b->phase,
+                'starts_in_seconds' => $b->starts_in_seconds,
+                'ends_in_seconds' => $b->ends_in_seconds,
+                'progress_percent' => $b->progress_percent,
+            ]);
+        });
 
         return response()->json($batches);
     }
@@ -67,11 +79,12 @@ class AuctionBatchController extends Controller
 
         $lotSummaries = $batch->lots->map(function($lot){
             $highest = $lot->bidItems()
-                ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
-                ->where('bid_sets.status', 'valid')
-                ->orderByDEsc('bid_amount')
+                ->join('bid_sets','bid_sets.id','=','bid_items.bid_set_id')
+                ->where('bid_sets.status','valid')
+                ->orderByDesc('bid_amount')
                 ->orderBy('bid_sets.submitted_at')
                 ->first();
+
             return [
                 'lot_id' => $lot->id,
                 'lot_number' => $lot->lot_number,
@@ -80,12 +93,18 @@ class AuctionBatchController extends Controller
         });
 
         return response()->json([
-            'batch' => $batch,
+            'batch' => array_merge($batch->toArray(), [
+                'now' => now()->toIso8601String(),
+                'phase' => $batch->phase,
+                'starts_in_seconds' => $batch->starts_in_seconds,
+                'ends_in_seconds' => $batch->ends_in_seconds,
+                'progress_percent' => $batch->progress_percent,
+            ]),
             'lots' => $batch->lots,
             'summaries' => $lotSummaries,
         ]);
     }
-
+    
     /**
      * Update the specified resource in storage.
      */

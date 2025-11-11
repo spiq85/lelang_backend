@@ -166,4 +166,46 @@ class AuctionBatch extends Model
     {
         return $this->status === 'published';
     }
+
+    public function getPhaseAttribute(): string
+    {
+        $now = now();
+
+        if ($this->status === 'closed' || ($this->end_at && $now->gte($this->end_at))) {
+            return 'ended';
+        }
+
+        if ($this->status === 'published') {
+            if ($this->start_at && $now->lt($this->start_at)) return 'scheduled';
+            return 'live';
+        }
+
+        return $this->status;
+    }
+
+    public function getStartsInSecondsAttribute(): ?int
+    {
+        return ($this->phase === 'scheduled' && $this->start_at)
+            ? now()->diffInSeconds($this->start_at, false)
+            : null;
+    }
+
+    public function getEndsInSecondsAttribute(): ?int
+    {
+        return ($this->phase === 'live' && $this->end_at)
+            ? now()->diffInSeconds($this->end_at, false)
+            : null;
+    }
+
+    public function getProgressPercentAttribute(): ?float
+    {
+        if ($this->phase !== 'live' || !$this->start_at || !$this->end_at) return null;
+
+        $total = $this->start_at->diffInSeconds($this->end_at, false);
+
+        if ($total <= 0) return 100.0;
+        $elapsed = $this->start_at->diffInSeconds(now(), false);
+        
+        return max(0, min(100, ($elapsed / $total) * 100));
+    }
 }
