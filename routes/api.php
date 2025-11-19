@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminBatchController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\BannerController;
 
 // =======================
 // Public Routes
@@ -18,9 +19,10 @@ use App\Http\Controllers\Api\NotificationController;
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-// Produk & Kategori tanpa autentikasi
+// Produk, Kategori, Banner tanpa autentikasi
 Route::get('products/live', [ProductController::class, 'live']);
 Route::get('categories', [CategoryController::class, 'index']);
+Route::get('/banners', [BannerController::class, 'index']);
 
 // =======================
 // Seller Routes
@@ -32,7 +34,7 @@ Route::middleware(['auth:sanctum', 'seller'])->group(function () {
     // CRUD Batch & Lot
     Route::apiResource('seller/auction-batches', AuctionBatchController::class);
     Route::apiResource('seller/auction-batches.lots', BatchLotController::class)->shallow();
-    
+
     Route::get('me/notifications', [NotificationController::class, 'index']);
     Route::get('me/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::post('me/notifications/{id}/mark-read', [NotificationController::class, 'markRead']);
