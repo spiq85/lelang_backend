@@ -9,43 +9,48 @@ use Illuminate\Http\Request;
 class BannerController extends Controller
 {
     /**
-     * GET /api/banners
-     *
-     * Menampilkan semua banner yang sedang aktif (untuk homepage/slider)
+     * Get active banners
      */
     public function index(Request $request)
     {
         $banners = Banner::active()
             ->orderBy('position')
             ->get()
-            ->makeHidden(['created_by', 'updated_by', 'created_at', 'updated_at', 'deleted_at']);
+            ->map(function ($banner) {
+                return [
+                    'id'        => $banner->id,
+                    'title'     => $banner->title,
+                    'subtitle'  => $banner->subtitle,
+                    'image_url' => $banner->image_url, // ⬅️ FINAL FIX
+                    'link'      => null,
+                    'position'  => $banner->position,
+                ];
+            });
 
         return response()->json([
             'success' => true,
-            'message' => 'Banner berhasil dimuat',
+            'message' => 'Banner loaded successfully',
             'data'    => $banners
         ]);
     }
 
     /**
-     * GET /api/banners/{id}
-     *
-     * Opsional: kalau frontend butuh detail banner tertentu
+     * Show single banner detail
      */
     public function show($id)
     {
-        $banner = Banner::active()->find($id);
-
-        if (!$banner) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Banner tidak ditemukan atau tidak aktif'
-            ], 404);
-        }
+        $banner = Banner::findOrFail($id);
 
         return response()->json([
             'success' => true,
-            'data'    => $banner->makeHidden(['created_by', 'updated_by', 'created_at', 'updated_at'])
+            'data'    => [
+                'id'        => $banner->id,
+                'title'     => $banner->title,
+                'subtitle'  => $banner->subtitle,
+                'image_url' => $banner->image_url,
+                'link'      => null,
+                'position'  => $banner->position,
+            ]
         ]);
     }
 }
