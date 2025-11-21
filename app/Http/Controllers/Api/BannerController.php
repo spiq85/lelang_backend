@@ -8,49 +8,49 @@ use Illuminate\Http\Request;
 
 class BannerController extends Controller
 {
-    /**
-     * Get active banners
-     */
     public function index(Request $request)
     {
-        $banners = Banner::active()
-            ->orderBy('position')
-            ->get()
-            ->map(function ($banner) {
-                return [
-                    'id'        => $banner->id,
-                    'title'     => $banner->title,
-                    'subtitle'  => $banner->subtitle,
-                    'image_url' => $banner->image_url, // ⬅️ FINAL FIX
-                    'link'      => null,
-                    'position'  => $banner->position,
-                ];
-            });
+        $status = $request->get('status', 'active'); // default active
+        $q = Banner::query();
+
+        if ($status === 'active') {
+            $q->active();
+        } elseif (in_array($status, ['draft','inactive'])) {
+            $q->where('status', $status);
+        } // 'all' → tanpa filter status
+
+        $banners = $q->orderBy('position')
+            ->get(['id','title','subtitle','image_path','position']);
+
+        $data = $banners->map(fn ($b) => [
+            'id'        => $b->id,
+            'title'     => $b->title,
+            'subtitle'  => $b->subtitle,
+            'image_url' => $b->image_url, // accessor
+            'link'      => null,
+            'position'  => $b->position,
+        ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Banner loaded successfully',
-            'data'    => $banners
+            'data'    => $data,
         ]);
-    }
+}
 
-    /**
-     * Show single banner detail
-     */
     public function show($id)
     {
-        $banner = Banner::findOrFail($id);
-
+        $b = Banner::findOrFail($id);
         return response()->json([
             'success' => true,
             'data'    => [
-                'id'        => $banner->id,
-                'title'     => $banner->title,
-                'subtitle'  => $banner->subtitle,
-                'image_url' => $banner->image_url,
+                'id'        => $b->id,
+                'title'     => $b->title,
+                'subtitle'  => $b->subtitle,
+                'image_url' => $b->image_url,
                 'link'      => null,
-                'position'  => $banner->position,
-            ]
+                'position'  => $b->position,
+            ],
         ]);
     }
 }
