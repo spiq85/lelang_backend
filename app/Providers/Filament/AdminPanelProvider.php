@@ -58,6 +58,10 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 FilamentShieldPlugin::make(),
+            ])->widgets([
+                \App\Filament\Widgets\StatsOverview::class,
+                AccountWidget::class,
+                FilamentInfoWidget::class,
             ])
             ->databaseNotifications()
             ->databaseNotificationsPolling('30s'); // refresh otomatis tiap 30 detik
