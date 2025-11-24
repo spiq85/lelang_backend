@@ -12,9 +12,10 @@ use Illuminate\Support\Facades\Validator;
 class ProductController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * ============================
+     * LIVE PRODUCTS (sedang dilelang)
+     * ============================
      */
-
     public function live(Request $request)
     {
         $now = now();
@@ -29,116 +30,183 @@ class ProductController extends Controller
             ->with([
                 'images',
                 'categories',
-                'batches' => fn($q) => $q 
+                'batches' => fn($q) => $q
                     ->select(
-                        'auction_batches.id', 
-                        'auction_batches.title', 
-                        'auction_batches.start_at', 
-                        'auction_batches.end_at', 
+                        'auction_batches.id',
+                        'auction_batches.title',
+                        'auction_batches.start_at',
+                        'auction_batches.end_at',
                         'auction_batches.status'
                     )
                     ->where('auction_batches.status', 'published'),
             ]);
 
-            if ($request->filled('category')) {
-                $slug = $request->string('category');
-                $query->whereHas('categories', fn($q) => $q->where('slug', $slug));
-            }
+        // Filter kategori
+        if ($request->filled('category')) {
+            $slug = $request->string('category');
+            $query->whereHas('categories', fn($q) => $q->where('slug', $slug));
+        }
 
-            if ($request->filled('q')) {
-                $term = $request->string('q');
-                $query->where(function($w) use ($term){
-                    $w->where('product_name', 'like', "%{$term}%")
-                        ->orWhere('description', 'like', "%{$term}%");
-                });
-            }
+        // Search
+        if ($request->filled('q')) {
+            $term = $request->string('q');
+            $query->where(function($w) use ($term){
+                $w->where('product_name', 'like', "%{$term}%")
+                    ->orWhere('description', 'like', "%{$term}%");
+            });
+        }
 
-            $query->latest('products.created_at');
+        $query->latest('products.created_at');
 
-            return response()->json(
-                $query->paginate($request->get('per_page', 12))
-            );
+        return response()->json(
+            $query->paginate($request->get('per_page', 12))
+        );
     }
 
+    /**
+     * ============================
+     * PRODUCT LISTING BARU (SELALU ADA)
+     * ============================
+     */
+    public function listing(Request $request)
+    {
+        $now = now();
+
+        $products = Product::query()
+            ->where('products.status', 'published')
+            ->with([
+                'images',
+                'categories',
+                'batches' => fn($q) => $q->select(
+                    'auction_batches.id',
+                    'auction_batches.title',
+                    'auction_batches.start_at',
+                    'auction_batches.end_at',
+                    'auction_batches.status'
+                )
+            ])
+            ->latest()
+            ->paginate($request->get('per_page', 12));
+
+        // Map hasil agar FE gampang pake
+        $mapped = $products->through(function ($p) use ($now) {
+
+            $ongoing = $p->batches()
+                ->where('auction_batches.status', 'published')
+                ->where('auction_batches.start_at', '<=', $now)
+                ->where('auction_batches.end_at', '>=', $now)
+                ->first();
+
+            $upcoming = $p->batches()
+                ->where('auction_batches.status', 'published')
+                ->where('auction_batches.start_at', '>', $now)
+                ->orderBy('auction_batches.start_at')
+                ->first();
+
+            $ended = $p->batches()
+                ->where('auction_batches.status', 'published')
+                ->where('auction_batches.end_at', '<', $now)
+                ->orderByDesc('auction_batches.end_at')
+                ->first();
+
+            return [
+                'id' => $p->id,
+                'product_name' => $p->product_name,
+                'description' => $p->description,
+                'base_price' => $p->base_price,
+                'images' => $p->images,
+                'categories' => $p->categories,
+
+                'auction_status' =>
+                    $ongoing ? 'ongoing' :
+                    ($upcoming ? 'upcoming' :
+                    ($ended ? 'ended' : 'no_auction')),
+
+                'ongoing_batch' => $ongoing,
+                'upcoming_batch' => $upcoming,
+                'ended_batch' => $ended,
+            ];
+        });
+
+        return response()->json($mapped);
+    }
+
+    /**
+     * ============================
+     * DETAIL PRODUK
+     * ============================
+     */
     public function detail(Product $product)
-{
-    $now = now();
+    {
+        $now = now();
 
-    // eager load agar ga nembak query berkali-kali
-    $product->load(['images', 'categories', 'batches']);
+        $product->load(['images', 'categories', 'batches']);
 
-    // cari batch yang lagi jalan
-    $onGoingBatch = $product->batches()
-        ->where('auction_batches.status', 'published')
-        ->where('auction_batches.start_at', '<=', $now)
-        ->where('auction_batches.end_at', '>=', $now)
-        ->orderBy('auction_batches.start_at')
-        ->first();
-
-    // kalau ga ada yang jalan, ambil batch berikutnya
-    $nextBatch = null;
-    if (!$onGoingBatch) {
-        $nextBatch = $product->batches()
+        $onGoingBatch = $product->batches()
             ->where('auction_batches.status', 'published')
-            ->where('auction_batches.start_at', '>', $now)
-            ->orderBy('auction_batches.start_at')
+            ->where('auction_batches.start_at', '<=', $now)
+            ->where('auction_batches.end_at', '>=', $now)
             ->first();
+
+        $nextBatch = !$onGoingBatch
+            ? $product->batches()
+                ->where('auction_batches.status', 'published')
+                ->where('auction_batches.start_at', '>', $now)
+                ->orderBy('auction_batches.start_at')
+                ->first()
+            : null;
+
+        $activeBatch = $onGoingBatch ?: $nextBatch;
+
+        $lots = collect();
+        if ($activeBatch) {
+            $lots = $product->batchLots()
+                ->where('batch_id', $activeBatch->id)
+                ->orderBy('lot_number')
+                ->get([
+                    'id', 'batch_id', 'product_id', 'lot_number',
+                    'starting_price', 'reserve_price', 'status'
+                ]);
+        }
+
+        $meta = null;
+        if ($activeBatch) {
+            $meta = [
+                'batch_id' => $activeBatch->id,
+                'title' => $activeBatch->title,
+                'status' => $activeBatch->status,
+                'start_at' => $activeBatch->start_at,
+                'end_at' => $activeBatch->end_at,
+                'is_ongoing' => $activeBatch->start_at <= $now && $now <= $activeBatch->end_at,
+                'start_in_seconds' => $now->lt($activeBatch->start_at)
+                    ? $now->diffInSeconds($activeBatch->start_at)
+                    : 0,
+                'end_in_seconds' => $now->lt($activeBatch->end_at)
+                    ? $now->diffInSeconds($activeBatch->end_at)
+                    : 0,
+            ];
+        }
+
+        return response()->json([
+            'product' => $product,
+            'active_batch' => $meta,
+            'lots' => $lots,
+        ]);
     }
 
-    // tentuin batch aktif
-    $activeBatch = $onGoingBatch ?: $nextBatch;
-
-    // ambil lot hanya kalau ada batch aktif
-    $lots = collect();
-    if ($activeBatch) {
-        $lots = $product->batchLots()
-            ->where('batch_id', $activeBatch->id)
-            ->orderBy('lot_number')
-            ->get([
-                'id',
-                'batch_id',
-                'product_id',
-                'lot_number',
-                'starting_price',
-                'reserve_price',
-                'status',
-            ]);
-    }
-
-    // meta data batch aktif
-    $meta = null;
-    if ($activeBatch) {
-        $meta = [
-            'batch_id' => $activeBatch->id,
-            'title' => $activeBatch->title,
-            'status' => $activeBatch->status,
-            'start_at' => $activeBatch->start_at,
-            'end_at' => $activeBatch->end_at,
-            'is_ongoing' => $activeBatch->start_at <= $now && $now <= $activeBatch->end_at,
-            'start_in_seconds' => $now->lt($activeBatch->start_at)
-                ? $now->diffInSeconds($activeBatch->start_at)
-                : 0,
-            'end_in_seconds' => $now->lt($activeBatch->end_at)
-                ? $now->diffInSeconds($activeBatch->end_at)
-                : 0,
-        ];
-    }
-
-    return response()->json([
-        'product' => $product,
-        'active_batch' => $meta,
-        'lots' => $lots,
-    ], 200);
-}
-
+    /**
+     * INDEX / STORE / SHOW / UPDATE / DESTROY
+     * (Tidak diubah)
+     */
 
     public function index(Request $request)
     {
         $query = Product::with(['images', 'categories', 'auctionBatches']);
 
-        // Filter by category
+        // Filter kategori
         if ($request->has('category')) {
             $categorySlug = $request->category;
+
             $query->whereHas('categories', function($q) use ($categorySlug) {
                 $q->where('slug', $categorySlug);
             });
@@ -147,23 +215,24 @@ class ProductController extends Controller
         // Search
         if ($request->has('search')) {
             $searchTerm = $request->search;
-            $query->where('product_name', 'like', '%' . $searchTerm . '%')
-                ->orWhere('description', 'like', '%' . $searchTerm . '%');
+
+            $query->where(function($w) use ($searchTerm) {
+                $w->where('product_name', 'like', "%{$searchTerm}%")
+                    ->orWhere('description', 'like', "%{$searchTerm}%");
+            });
         }
 
-        // Sort
+        // Sorting
         $sortField = $request->get('sort', 'created_at');
         $sortDirection = $request->get('direction', 'desc');
         $query->orderBy($sortField, $sortDirection);
 
-        $products = $query->paginate($request->get('per_page', 15));
-
-        return response()->json($products);
+        // Pagination
+        return response()->json(
+        $query->paginate($request->get('per_page', 15))
+        );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -179,50 +248,39 @@ class ProductController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json(['errors'=>$validator->errors()],422);
         }
 
-        // Create product
-        $productData = $request->only([
-            'seller_id', 'product_name', 'description', 'base_price', 'status'
-        ]);
+        $product = Product::create(
+            $request->only(['seller_id','product_name','description','base_price','status'])
+        );
 
-        $product = Product::create($productData);
-
-        // Attach categories
-        if ($request->has('categories') && is_array($request->categories)) {
+        if ($request->has('categories')) {
             $product->categories()->attach($request->categories);
         }
 
-        // Handle images upload if provided
         if ($request->hasFile('images')) {
-            foreach ($request->file('images') as $index => $image) {
-                $path = $image->store('product_images', 'public');
+            foreach ($request->file('images') as $i => $image) {
+                $path = $image->store('product_images','public');
                 $product->images()->create([
-                    'image_url' => $path,
-                    'sort_order' => $index
+                    'image_url'=>$path,
+                    'sort_order'=>$i
                 ]);
             }
         }
 
-        // Load relationships
-        $product->load(['images', 'categories']);
+        $product->load(['images','categories']);
 
-        return response()->json($product, 201);
+        return response()->json($product,201);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show($id)
     {
-        $product = Product::with(['images', 'categories', 'auctionBatches'])->findOrFail($id);
-        return response()->json($product);
+        return response()->json(
+            Product::with(['images','categories','auctionBatches'])->findOrFail($id)
+        );
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, $id)
     {
         $product = Product::findOrFail($id);
@@ -240,61 +298,48 @@ class ProductController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json(['errors'=>$validator->errors()],422);
         }
 
-        // Update product data
-        $product->update($request->only([
-            'seller_id', 'product_name', 'description', 'base_price', 'status'
-        ]));
+        $product->update(
+            $request->only(['seller_id','product_name','description','base_price','status'])
+        );
 
-        // Update categories if provided
-        if ($request->has('categories') && is_array($request->categories)) {
+        if ($request->has('categories')) {
             $product->categories()->sync($request->categories);
         }
 
-        // Handle images upload if provided
         if ($request->hasFile('images')) {
-            // Delete old images
-            foreach ($product->images as $image) {
-                Storage::disk('public')->delete($image->image_url);
-                $image->delete();
+            foreach ($product->images as $img) {
+                Storage::disk('public')->delete($img->image_url);
+                $img->delete();
             }
 
-            // Upload new images
-            foreach ($request->file('images') as $index => $image) {
-                $path = $image->store('product_images', 'public');
+            foreach ($request->file('images') as $i => $image) {
+                $path = $image->store('product_images','public');
                 $product->images()->create([
-                    'image_url' => $path,
-                    'sort_order' => $index
+                    'image_url'=>$path,
+                    'sort_order'=>$i
                 ]);
             }
         }
 
-        // Load relationships
-        $product->load(['images', 'categories']);
+        $product->load(['images','categories']);
 
         return response()->json($product);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
         $product = Product::findOrFail($id);
 
-        // Delete images from storage
-        foreach ($product->images as $image) {
-            Storage::disk('public')->delete($image->image_url);
+        foreach ($product->images as $img) {
+            Storage::disk('public')->delete($img->image_url);
         }
 
-        // Delete product categories relationship
         $product->categories()->detach();
-
-        // Delete product
         $product->delete();
 
-        return response()->json(['message' => 'Product deleted successfully']);
+        return response()->json(['message'=>'Product deleted successfully']);
     }
 }

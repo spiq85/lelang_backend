@@ -21,6 +21,7 @@ Route::post('login', [AuthController::class, 'login']);
 
 // Produk, Kategori, Banner tanpa autentikasi
 Route::get('products/live', [ProductController::class, 'live']);
+Route::get('products/listing', [ProductController::class, 'listing']);
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('/banners', [BannerController::class, 'index']);
 
