@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminBatchController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\BannerController;
+use App\Http\Controllers\Api\HomeController;
 
 // =======================
 // Public Routes
@@ -24,6 +25,7 @@ Route::get('products/live', [ProductController::class, 'live']);
 Route::get('products/listing', [ProductController::class, 'listing']);
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('/banners', [BannerController::class, 'index']);
+Route::get('/home',[HomeController::class, 'index']);
 
 // =======================
 // Seller Routes

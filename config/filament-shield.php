@@ -161,9 +161,21 @@ return [
     |--------------------------------------------------------------------------
     */
     'discovery' => [
-        'discover_all_resources' => false,
-        'discover_all_widgets' => false,
-        'discover_all_pages' => false,
+        'discover_all_resources' => true,
+        'discover_all_widgets' => true,
+        'discover_all_pages' => true,
+        'resources' => [
+            'path' => app_path('Filament/Resources'),
+            'namespace' => 'App\\Filament\\Resources',
+        ],
+        'pages' => [
+            'path' => app_path('Filament/Pages'),
+            'namespace' => 'App\\Filament\\Pages',
+        ],
+        'widgets' => [
+            'path' => app_path('Filament/Widgets'),
+            'namespace' => 'App\\Filament\\Widgets',
+        ]
     ],
 
     /*
