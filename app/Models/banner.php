@@ -42,3 +42,4 @@ class Banner extends Model
 
     protected $appends = ['image_url'];
 }
+
