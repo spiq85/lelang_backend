@@ -7,6 +7,7 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Hash;
 
 class UserForm
 {
@@ -22,13 +23,14 @@ class UserForm
                     ->required(),
                 TextInput::make('password')
                     ->password()
-                    ->required(),
+                    ->dehydrateStateUsing(fn($state) => Hash::make($state))
+                    ->dehydrated(fn($state) => filled($state)),
                 TextInput::make('npwp'),
                 TextInput::make('phone_number')
                     ->tel(),
-                CheckboxList::make('roles')       
+                CheckboxList::make('roles')
                     ->label('Roles')
-                    ->relationship('roles', 'name')   
+                    ->relationship('roles', 'name')
                     ->columns(2),
                 Toggle::make('is_active')
                     ->required(),

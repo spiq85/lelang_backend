@@ -16,12 +16,22 @@ class Product extends Model
         'description',
         'base_price',
         'status',
+        'is_trending',
+        'trending_at',
+        'trending_order',
     ];
 
     protected $casts = [
         'base_price' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'is_trending' => 'boolean',
+        'trending_at' => 'datetime',
+        'trending_order' => 'integer',
+    ];
+
+    protected $attributes = [
+        'is_trending' => false,
     ];
 
     public function seller() {

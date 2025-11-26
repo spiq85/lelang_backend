@@ -18,8 +18,8 @@ class DatabaseSeeder extends Seeder
             CategoriesSeeder::class,
             ProductSeeder::class,
             ProductCategoriesSeeder::class,
-            AuctionBatchesSeeder::class,
-            BatchLotSeeder::class,
+            // AuctionBatchesSeeder::class
+            // BatchLotSeeder::class,
         ]);
     }
 }

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminBatchController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\BannerController;
+use App\Http\Controllers\Api\HomeController;
 
 // =======================
 // Public Routes
@@ -21,8 +22,10 @@ Route::post('login', [AuthController::class, 'login']);
 
 // Produk, Kategori, Banner tanpa autentikasi
 Route::get('products/live', [ProductController::class, 'live']);
+Route::get('products/listing', [ProductController::class, 'listing']);
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('/banners', [BannerController::class, 'index']);
+Route::get('/home',[HomeController::class, 'index']);
 
 // =======================
 // Seller Routes
@@ -34,11 +37,6 @@ Route::middleware(['auth:sanctum', 'seller'])->group(function () {
     // CRUD Batch & Lot
     Route::apiResource('seller/auction-batches', AuctionBatchController::class);
     Route::apiResource('seller/auction-batches.lots', BatchLotController::class)->shallow();
-
-    Route::get('me/notifications', [NotificationController::class, 'index']);
-    Route::get('me/notifications/unread-count', [NotificationController::class, 'unreadCount']);
-    Route::post('me/notifications/{id}/mark-read', [NotificationController::class, 'markRead']);
-    Route::post('me/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
 });
 
 // =======================
@@ -70,6 +68,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ✅ Tambahan baru: submit bid untuk satu lot
     Route::post('auction-batches/{batchId}/lots/{lotId}/submit-bid', [BidSetController::class, 'submitPerLot']);
+
+    Route::get('me/notifications', [NotificationController::class, 'index']);
+    Route::get('me/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::post('me/notifications/{id}/mark-read', [NotificationController::class, 'markRead']);
+    Route::post('me/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
 });
 
 // =======================

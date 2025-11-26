@@ -1,29 +1,15 @@
-<?php
+<?php   
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
 
 class Banner extends Model
 {
-    use HasFactory;
-
-    protected $table = 'banners';
-    protected $primaryKey = 'id';
-
     protected $fillable = [
-        'title',
-        'subtitle',
-        'image_path',
-        'position',
-        'status',
-        'start_at',
-        'end_at',
-        'created_by',
-        'updated_by',
+        'title','subtitle','image_path','position','status',
+        'start_at','end_at','created_by','updated_by',
     ];
 
     protected $casts = [
@@ -31,50 +17,29 @@ class Banner extends Model
         'end_at'   => 'datetime',
     ];
 
+    // Scope aktif — sementara matikan cek waktu (nanti di-enable lagi kalau sudah fix datetime)
+    public function scopeActive($q)
+    {
+        return $q->where('status', 'active');
+    }
+
+    // Accessor image_url — KUNCI SUPAYA GAMBAR MUNCUL DI VITE
     public function getImageUrlAttribute(): ?string
     {
-        if (!$this->image_path) {
-            return null;
+        if (!$this->image_path) return null;
+
+        // DEVELOPMENT ONLY → pakai proxy Vite (localhost:5173)
+        if (app()->environment('local')) {
+            // http://localhost:5173/storage/banners/xxx.jpg
+            return url('/storage/' . $this->image_path);
+            // atau kalau mau lebih eksplisit:
+            // return 'http://localhost:5173/storage/' . $this->image_path;
         }
 
-        return Storage::url($this->image_path);
+        // Production → pakai yang normal
+        return Storage::disk('public')->url($this->image_path);
     }
 
-    public function creator()
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function updater()
-    {
-        return $this->belongsTo(User::class, 'updated_by');
-    }
-    public function scopeActive(Builder $query): Builder
-    {
-        $now = now();
-
-        
-        return $query
-            ->where('status', 'active')
-            ->where(function ($q) use ($now) {
-                $q->whereNull('start_at')->orWhere('start_at', '<=', $now);
-            })
-            ->where(function ($q) use ($now) {
-                $q->whereNull('end_at')->orWhere('end_at', '>=', $now);
-            })
-            ->orderBy('position');
-    }
-    public function scopeExpired(Builder $query): Builder
-    {
-        return $query
-            ->where('status', '!=', 'active')
-            ->orWhere('end_at', '<', now());
-    }
-
-    public function isActive(): bool
-    {
-        return $this->status === 'active' &&
-            (!$this->start_at || $this->start_at->isPast()) &&
-            (!$this->end_at || $this->end_at->isFuture());
-    }
+    protected $appends = ['image_url'];
 }
+
