@@ -21,6 +21,8 @@ class StatsOverview extends BaseWidget
         // Default: Admin lihat semua
         $totalUsers      = User::count();
         $totalCategories = Category::count();
+        $totalProducts = Product::count();
+        $totalProductsDraft = Product::Where(['status' => 'draft'])->count();
 
         // Auction Batch: hanya yang published & pending_review
         $batchQuery = AuctionBatch::whereIn('status', ['published', 'pending_review']);
@@ -60,6 +62,16 @@ class StatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-tag')
                 ->color('info');
         }
+
+        $stats[] = Stat::make('Total Products', $totalProducts)
+            ->description('Semua Produk Terdaftar')
+            ->descriptionIcon('heroicon-m-cube')
+            ->color('success');
+
+            $stats[] = Stat::make('Product Draft', $totalProductsDraft)
+            ->description('Produk menunggu di publish')
+            ->descriptionIcon('heroicon-m-document-text')
+            ->color('danger');
 
         // Semua role lihat batch (tapi seller hanya punya dia)
         $stats[] = Stat::make('Auction Batches (Published)', $totalPublishedBatches)

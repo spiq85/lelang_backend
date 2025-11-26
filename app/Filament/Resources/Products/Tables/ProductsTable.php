@@ -163,7 +163,7 @@ class ProductsTable
                             Notification::make()
                                 ->title('Produk Ditolak')
                                 ->body("{$record->product_name} ditolak oleh admin.")
-                                ->danger()
+                            ->danger()
                                 ->sendToDatabase($record->seller);
                         }
 

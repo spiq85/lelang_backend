@@ -69,7 +69,7 @@ class User extends Authenticatable implements FilamentUser, HasName
     public function canAccessPanel(Panel $panel): bool
     {
         // misal, hanya user aktif yang bisa login
-        return (bool) $this->is_active;
+        return in_array($this->role, ['admin', 'seller', 'super_admin']) && $this->is_active;
     }
 
     // Opsional fallback untuk kompatibilitas paket lain
