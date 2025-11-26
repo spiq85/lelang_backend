@@ -52,6 +52,8 @@ class Banner extends Model
     public function scopeActive(Builder $query): Builder
     {
         $now = now();
+
+        
         return $query
             ->where('status', 'active')
             ->where(function ($q) use ($now) {
