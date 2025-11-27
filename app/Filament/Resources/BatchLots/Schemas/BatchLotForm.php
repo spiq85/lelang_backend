@@ -7,141 +7,99 @@ use Filament\Schemas\Schema;
 use App\Models\AuctionBatch;
 use App\Models\Product;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Illuminate\Support\HtmlString;
 
 class BatchLotForm
 {
     public static function configure(Schema $schema): Schema
     {
-        return $schema
-            ->columns(1)
-            ->schema([
+        return $schema->schema([
+    Forms\Components\Select::make('batch_id')
+        ->label('Auction Batch')
+        ->relationship('batch', 'title')
+        ->searchable()
+        ->preload()
+        ->required()
+        ->reactive(),
 
-                // Step 1: Lot Number
-                Forms\Components\TextInput::make('lot_number')
-                    ->label('Lot Number')
-                    ->numeric()
-                    ->default(1)
-                    ->required()
-                    ->reactive(),
+    Forms\Components\TextInput::make('lot_number')
+        ->label('Lot Number')
+        ->numeric()
+        ->required()
+        ->unique('batch_lots', 'lot_number', ignorable: fn ($record) => $record)
+        ->helperText('Nomor unik dalam satu batch'),
 
-                // Step 2: Auction Batch (pindah ke atas)
-                Forms\Components\Select::make('batch_id')
-                    ->label('Auction Batch')
-                    ->options(function () {
-                        $user = auth()->user();
-                        $query = AuctionBatch::query();
+    Section::make('Produk dalam Lot Ini')
+        ->collapsible()
+        ->collapsed(fn ($record) => $record?->lotProducts->count() > 8)
+        ->schema([
+            Forms\Components\Repeater::make('lotProducts')
+                ->relationship('lotProducts') // otomatis create/update/delete di batch_lot_products
+                ->schema([
+                    Forms\Components\Select::make('product_id')
+                        ->label('Pilih Produk')
+                        ->options(\App\Models\Product::pluck('product_name', 'id'))
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->reactive()
+                        ->distinct()
+                        ->afterStateUpdated(function ($state, $set) {
+                            if (!$state) return;
+                            $product = \App\Models\Product::find($state);
+                            $price = $product?->base_price ?? 0;
+                            $set('starting_price', $price);
+                            $set('reserve_price', $price);
+                        }),
 
-                        if ($user->role === 'seller') {
-                            $query->where('seller_id', $user->id)
-                                  ->whereIn('status', ['draft', 'pending_review']);
-                        }
+                    Forms\Components\Placeholder::make('image_preview')
+                        ->label('Preview Gambar')
+                        ->content(function ($get) {
+                            $id = $get('product_id');
+                            if (!$id) return new HtmlString('<em>Pilih produk untuk melihat gambar</em>');
 
-                        return $query->pluck('title', 'id');
-                    })
-                    ->searchable()
-                    ->required()
-                    ->visible(fn ($get) => filled($get('lot_number'))),
+                            $product = \App\Models\Product::with('images')->find($id);
+                            if (!$product || $product->images->isEmpty()) {
+                                return new HtmlString('<em>Tidak ada gambar</em>');
+                            }
 
-                // Step 3: Status
-                Forms\Components\Select::make('status')
-                    ->label('Lot Status')
-                    ->options([
-                        'open' => 'Open',
-                        'closed' => 'Closed',
-                        'awarded' => 'Awarded',
-                        'settled' => 'Settled',
-                    ])
-                    ->default('open')
-                    ->required()
-                    ->visible(fn ($get) => filled($get('batch_id'))),
+                            $html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">';
+                            foreach ($product->images->sortBy('sort_order')->take(5) as $img) {
+                                $url = asset('storage/' . $img->image_url);
+                                $html .= "<img src=\"{$url}\" style=\"width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;\" />";
+                            }
+                            $html .= '</div>';
+                            return new HtmlString($html);
+                        })
+                        ->columnSpanFull(),
 
-                // Step 4: Multi Product builder
-                Forms\Components\Repeater::make('lot_products')
-                    ->label('Products in This Lot')
-                    ->visible(fn ($get) => filled($get('batch_id')))
-                    ->createItemButtonLabel('Add Another Product')
-                    ->collapsible()
-                    ->defaultItems(0)
-                    ->minItems(1)
-                    ->schema([
-
-                        Forms\Components\Select::make('product_id')
-                            ->label('Select Product')
-                            ->options(function () {
-                                $user = auth()->user();
-                                $query = Product::query();
-
-                                if ($user->role === 'seller') {
-                                    $query->where('seller_id', $user->id);
-                                }
-
-                                return $query->pluck('product_name', 'id');
-                            })
+                    Grid::make(2)->schema([
+                        Forms\Components\TextInput::make('starting_price')
+                            ->label('Starting Price')
+                            ->numeric()
+                            ->prefix('Rp ')
                             ->required()
-                            ->searchable()
-                            ->reactive()
-                            ->distinct()
-                            ->afterStateUpdated(function ($state, callable $set) {
-                                $product = Product::with('images')->find($state);
+                            ->minValue(0),
 
-                                if ($product) {
-                                    $set('starting_price', $product->base_price ?? 0);
-                                    $set('reserve_price', $product->base_price ?? 0);
-                                    $set('product_images', $product->images->pluck('image_url')->toArray());
-                                } else {
-                                    $set('starting_price', null);
-                                    $set('reserve_price', null);
-                                    $set('product_images', []);
-                                }
-                            }),
-
-                        Grid::make(3)
-                            ->schema([
-                                Forms\Components\Placeholder::make('images_preview')
-                                    ->label('Product Images')
-                                    ->content(function ($get) {
-                                        $productId = $get('product_id');
-                                        if (!$productId) {
-                                            return '';
-                                        }
-
-                                        $product = Product::with('images')->find($productId);
-                                        if (!$product || $product->images->isEmpty()) {
-                                            return 'No images';
-                                        }
-
-                                        $imageUrls = $product->images->take(3);
-                                        $html = '<div style="display: flex; gap: 8px;">';
-                                        
-                                        foreach ($imageUrls as $img) {
-                                            $html .= '<img src="' . asset('storage/' . $img->image_url) . '" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px;" />';
-                                        }
-                                        
-                                        $html .= '</div>';
-                                        return new \Illuminate\Support\HtmlString($html);
-                                    })
-                                    ->columnSpan(3),
-                            ])
-                            ->visible(fn ($get) => filled($get('product_id'))),
-
-                        Grid::make(2)
-                            ->schema([
-                                Forms\Components\TextInput::make('starting_price')
-                                    ->label('Starting Price')
-                                    ->prefix('Rp')
-                                    ->numeric()
-                                    ->required()
-                                    ->visible(fn ($get) => filled($get('product_id'))),
-
-                                Forms\Components\TextInput::make('reserve_price')
-                                    ->label('Reserve Price')
-                                    ->prefix('Rp')
-                                    ->numeric()
-                                    ->nullable()
-                                    ->visible(fn ($get) => filled($get('product_id'))),
-                            ]),
-                    ])
-                    ->columnSpanFull(),
-            ]);
+                        Forms\Components\TextInput::make('reserve_price')
+                            ->label('Reserve Price')
+                            ->numeric()
+                            ->prefix('Rp ')
+                            ->nullable()
+                            ->helperText('Kosongkan jika tidak ada reserve'),
+                    ]),
+                ])
+                ->columns(1)
+                ->collapsible()
+                ->cloneable()
+                ->reorderableWithDragAndDrop(false)
+                ->itemLabel(fn (array $state) => \App\Models\Product::find($state['product_id'] ?? null)?->product_name ?? 'Produk Baru')
+                ->minItems(1)
+                ->maxItems(50)
+                ->addActionLabel('Tambah Produk Lagi')
+                ->deleteAction(fn ($action) => $action->requiresConfirmation()),
+        ]),
+]);
     }
 }

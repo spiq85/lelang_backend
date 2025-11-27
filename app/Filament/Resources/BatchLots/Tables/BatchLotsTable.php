@@ -2,106 +2,63 @@
 
 namespace App\Filament\Resources\BatchLots\Tables;
 
-use Filament\Actions\Action;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Illuminate\Database\Eloquent\Builder;
+use Filament\Actions\EditAction;
+use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 
 class BatchLotsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(function (Builder $query) {
-                $user = auth()->user();
-                if ($user->role === 'seller') {
-                    $query->whereHas('batch', fn($q) => $q->where('seller_id', $user->id));
-                }
-            })
             ->columns([
-                TextColumn::make('batch.title')
-                    ->label('Batch Title')
-                    ->sortable()
-                    ->searchable(),
-
-                TextColumn::make('product.product_name')
-                    ->label('Product')
-                    ->sortable()
-                    ->searchable(),
-
-                TextColumn::make('lot_number')
+                Tables\Columns\TextColumn::make('lot_number')
                     ->label('Lot #')
-                    ->numeric()
-                    ->sortable(),
+                    ->sortable()
+                    ->searchable(),
 
-                TextColumn::make('starting_price')
-                    ->label('Starting Price')
-                    ->money('idr', true)
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('batch.title')
+                    ->label('Batch')
+                    ->searchable(),
 
-                TextColumn::make('reserve_price')
-                    ->label('Reserve Price')
-                    ->money('idr', true)
-                    ->sortable(),
-
-                TextColumn::make('status')
-                    ->label('Status')
+                TextColumn::make('lotProducts_count')
+                    ->label('Jumlah Produk')
+                    ->getStateUsing(fn($record) => $record->lotProducts->count())
                     ->badge()
-                    ->colors([
-                        'gray'    => 'open',
-                        'info'    => 'closed',
-                        'warning' => 'awarded',
-                        'success' => 'settled',
-                    ])
-                    ->formatStateUsing(fn(string $state) => ucfirst($state)),
+                    ->color(fn($state) => $state > 1 ? 'primary' : 'gray')
+                    ->icon('heroicon-o-cube')
+                    ->alignCenter(),
+
+                Tables\Columns\TextColumn::make('first_price')
+                    ->label('Starting Price')
+                    ->getStateUsing(fn($record) => $record->lotProducts->first()?->starting_price ?? 0)
+                    ->money('IDR'),
+
+                Tables\Columns\TextColumn::make('status')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'open'     => 'success',
+                        'closed'   => 'danger',
+                        'awarded'  => 'warning',
+                        'settled'  => 'info',
+                        default    => 'gray',
+                    }),
+            ])
+            ->filters([
+                //
             ])
             ->actions([
                 EditAction::make(),
-
-                // 🔹 View Bidders
-                Action::make('view_bidders')
-                    ->label('View Bidders')
-                    ->icon('heroicon-o-eye')
-                    ->color('info')
-                    ->visible(
-                        fn($record) =>
-                        auth()->user()->role !== 'seller' && $record->bidItems()->exists()
-                    )
-                    ->modalHeading('Bidders for this Lot')
-                    ->modalContent(function ($record) {
-                        $bids = $record->bidItems()
-                            ->with(['bidSet.user'])
-                            ->orderByDesc('bid_amount')
-                            ->get();
-
-                        if ($bids->isEmpty()) {
-                            return 'No bids placed for this lot.';
-                        }
-
-                        $html = '<div class="space-y-2">';
-                        foreach ($bids as $bid) {
-                            $html .= sprintf(
-                                '<div class="flex justify-between border-b pb-1">
-                        <span>%s</span>
-                        <span>Rp %s</span>
-                    </div>',
-                                e($bid->bidSet->user->full_name),
-                                number_format($bid->bid_amount, 0, ',', '.')
-                            );
-                        }
-                        $html .= '</div>';
-
-                        return new \Illuminate\Support\HtmlString($html);
-                    }),
-
-                // 🔹 Select Winner (action terpisah)
-                LotWinnerAction::make(),
+                DeleteAction::make()->requiresConfirmation(),
             ])
             ->bulkActions([
-                DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                ]),
             ]);
     }
 }

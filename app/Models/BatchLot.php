@@ -8,10 +8,12 @@ class BatchLot extends Model
 {
     protected $table = 'batch_lots';
 
-    protected $primaryKey = 'id';
-
     protected $fillable = [
-        'batch_id','product_id','lot_number','starting_price','reserve_price','status'
+        'batch_id',
+        'lot_number',
+        'starting_price',
+        'reserve_price',
+        'status',
     ];
 
     protected $casts = [
@@ -24,11 +26,19 @@ class BatchLot extends Model
         return $this->belongsTo(AuctionBatch::class, 'batch_id');
     }
 
-    public function product()
+    // Alias biar lebih pendek di form/table
+    public function products()
     {
-        return $this->belongsTo(Product::class, 'product_id');
+        return $this->lotProducts();
     }
 
+    // RELASI BARU: satu lot bisa banyak produk
+    public function lotProducts()
+    {
+        return $this->hasMany(BatchLotProduct::class, 'batch_lot_id')
+            ->with('product')
+            ->orderBy('id');
+    }
     public function bidItems()
     {
         return $this->hasMany(BidItem::class, 'lot_id');

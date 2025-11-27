@@ -31,7 +31,7 @@ class AuctionBatch extends Model
         'start_at'          => 'datetime',
         'end_at'            => 'datetime',
         'approved_at'       => 'datetime',
-        'bid_increment_rule'=> 'array',
+        'bid_increment_rule' => 'array',
         'reserve_rule'      => 'array',
     ];
 
@@ -42,14 +42,14 @@ class AuctionBatch extends Model
     */
     protected static function booted(): void
     {
-        // Otomatis buat 1 lot kosong saat seller membuat batch baru
+        // Otomatis buat 1 lot kosong (placeholder) saat batch dibuat
         static::created(function (self $batch) {
             $batch->lots()->create([
                 'lot_number'     => 1,
                 'starting_price' => 0,
                 'reserve_price'  => null,
                 'status'         => 'open',
-                'product_id'     => null,
+                // product_id sengaja dikosongkan (null) → akan diisi nanti
             ]);
         });
 
@@ -205,7 +205,7 @@ class AuctionBatch extends Model
 
         if ($total <= 0) return 100.0;
         $elapsed = $this->start_at->diffInSeconds(now(), false);
-        
+
         return max(0, min(100, ($elapsed / $total) * 100));
     }
 }

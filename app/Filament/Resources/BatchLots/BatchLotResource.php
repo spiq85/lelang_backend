@@ -30,6 +30,8 @@ class BatchLotResource extends Resource
         return BatchLotForm::configure($schema);
     }
 
+    
+
     public static function table(Table $table): Table
     {
         return BatchLotsTable::configure($table);
