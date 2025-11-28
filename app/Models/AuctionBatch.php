@@ -208,4 +208,16 @@ class AuctionBatch extends Model
 
         return max(0, min(100, ($elapsed / $total) * 100));
     }
+
+    public function batchLotProducts()
+    {
+        return $this->hasManyThrough(
+            BatchLotProduct::class,
+            BatchLot::class,
+            'batch_id',      // Foreign key di batch_lots
+            'batch_lot_id',  // Foreign key di batch_lot_products
+            'id',            // Local key di auction_batches
+            'id'             // Local key di batch_lots
+        );
+    }
 }
