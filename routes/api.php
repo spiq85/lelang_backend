@@ -20,12 +20,6 @@ use App\Http\Controllers\Api\HomeController;
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-// Produk, Kategori, Banner tanpa autentikasi
-Route::get('products/live', [ProductController::class, 'live']);
-Route::get('products/listing', [ProductController::class, 'listing']);
-Route::get('categories', [CategoryController::class, 'index']);
-Route::get('/banners', [BannerController::class, 'index']);
-Route::get('/home',[HomeController::class, 'index']);
 
 // =======================
 // Seller Routes
@@ -54,8 +48,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('user/auction-history', [UserController::class, 'auctionHistory']);
     Route::post('user/upload-payment-proof/{bidId}', [UserController::class, 'uploadPaymentProof']);
 
-    // Product Detail
+    // Categories
+    Route::get('categories', [CategoryController::class, 'index']);
+
+    // Products
+    Route::get('products/live', [ProductController::class, 'live']);
+    Route::get('products/listing', [ProductController::class, 'listing']);
     Route::get('products/{product}/detail', [ProductController::class, 'detail']);
+
+    // Banners
+    Route::get('/banners', [BannerController::class, 'index']);
+
+    // Home
+    Route::get('/home', [HomeController::class, 'index']);
+
+
 
     // =======================
     // Auction Bidding
