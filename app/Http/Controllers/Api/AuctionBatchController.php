@@ -14,25 +14,47 @@ class AuctionBatchController extends Controller
      */
     public function index(Request $request)
     {
-        $batches = AuctionBatch::with(['lots.product.images', 'lots.product.categories'])
-            ->when($request->status, fn($q,$s)=>$q->where('status',$s))
-            ->latest()
-            ->paginate($request->integer('per_page',15));
+        $batches = AuctionBatch::with([
+            'lots' => function ($q) {
+                $q->whereNotNull('product_id')
+                    ->with(['product.images', 'product.categories']);
+            },
+            'seller' => fn($q) => $q->select('id', 'full_name')
+        ])
+            ->where('status', 'published')
+            ->latest('start_at')
+            ->select('id', 'title', 'start_at', 'end_at', 'status', 'seller_id')
+            ->paginate($request->integer('per_page', 15));
 
-        // map tambahan countdown per item
-        $batches->getCollection()->transform(function ($b) {
-            return array_merge($b->toArray(), [
-                'now' => now()->toIso8601String(),
-                'phase' => $b->phase,
-                'starts_in_seconds' => $b->starts_in_seconds,
-                'ends_in_seconds' => $b->ends_in_seconds,
-                'progress_percent' => $b->progress_percent,
-            ]);
+        $batches->getCollection()->transform(function ($batch) {
+            return [
+                'id'                 => $batch->id,
+                'title'              => $batch->title,
+                'start_at'           => $batch->start_at,
+                'end_at'             => $batch->end_at,
+                'status'             => $batch->status,
+                'seller'             => $batch->seller,
+                'phase'              => $batch->phase,
+                'starts_in_seconds'  => $batch->starts_in_seconds,
+                'ends_in_seconds'    => $batch->ends_in_seconds,
+                'progress_percent'   => $batch->progress_percent,
+                'lots'               => $batch->lots->map(function ($lot) {
+                    return [
+                        'lot_number'     => $lot->lot_number,
+                        'starting_price' => $lot->starting_price,
+                        'product_id'     => $lot->product_id,
+                        'product'        => $lot->product ? [
+                            'id'           => $lot->product->id,
+                            'product_name' => $lot->product->product_name,
+                            'image_url'    => $lot->product->images->first()?->image_url,
+                        ] : null,
+                    ];
+                })->values(), // biar index mulai dari 0 lagi
+            ];
         });
 
         return response()->json($batches);
     }
-
     /**
      * Store a newly created resource in storage.
      */
@@ -52,15 +74,15 @@ class AuctionBatchController extends Controller
 
         $batch = AuctionBatch::create([
             $request,
-            'seller_id' => $request ['seller_id'],
-            'title' => $request ['title'],
-            'description' => $request ['description'],
-            'start_at' => $request ['start_at'],
-            'end_at' => $request ['end_date'],
-            'bid_increment_rule' => $request ['bid_increment_rule'],
-            'reserve_rule' => $request ['reserve_rule'],
-            'status' => $request ['status'],
-            'created_by' => $request ['created_by'],
+            'seller_id' => $request['seller_id'],
+            'title' => $request['title'],
+            'description' => $request['description'],
+            'start_at' => $request['start_at'],
+            'end_at' => $request['end_date'],
+            'bid_increment_rule' => $request['bid_increment_rule'],
+            'reserve_rule' => $request['reserve_rule'],
+            'status' => $request['status'],
+            'created_by' => $request['created_by'],
         ]);
 
         return response()->json(
@@ -77,10 +99,10 @@ class AuctionBatchController extends Controller
         $batch = AuctionBatch::with(['lots.product.images', 'lots.product.categories', 'bidSets.user'])
             ->findOrFail($id);
 
-        $lotSummaries = $batch->lots->map(function($lot){
+        $lotSummaries = $batch->lots->map(function ($lot) {
             $highest = $lot->bidItems()
-                ->join('bid_sets','bid_sets.id','=','bid_items.bid_set_id')
-                ->where('bid_sets.status','valid')
+                ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
+                ->where('bid_sets.status', 'valid')
                 ->orderByDesc('bid_amount')
                 ->orderBy('bid_sets.submitted_at')
                 ->first();
@@ -104,7 +126,7 @@ class AuctionBatchController extends Controller
             'summaries' => $lotSummaries,
         ]);
     }
-    
+
     /**
      * Update the specified resource in storage.
      */
@@ -128,7 +150,8 @@ class AuctionBatchController extends Controller
 
         return response()->json(
             $batch->load([
-                'lots.product.images', 'lots.product.categories'
+                'lots.product.images',
+                'lots.product.categories'
             ])
         );
     }

@@ -20,6 +20,18 @@ use App\Http\Controllers\Api\HomeController;
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
+// =====================
+// Home Routes
+// =====================
+Route::get('/home', [HomeController::class, 'index']);
+Route::get('/home', [HomeController::class, 'trending']);
+
+// =====================
+// Banner Routes
+// =====================
+Route::get('/banners', [BannerController::class, 'index']);
+
+
 
 // =======================
 // Seller Routes
@@ -55,14 +67,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('products/live', [ProductController::class, 'live']);
     Route::get('products/listing', [ProductController::class, 'listing']);
     Route::get('products/{product}/detail', [ProductController::class, 'detail']);
-
-    // Banners
-    Route::get('/banners', [BannerController::class, 'index']);
-
-    // Home
-    Route::get('/home', [HomeController::class, 'index']);
-
-
 
     // =======================
     // Auction Bidding

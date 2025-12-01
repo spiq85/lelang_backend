@@ -21,8 +21,8 @@ class ProductController extends Controller
         $now = now();
 
         $query = Product::query()
-            ->where('products.status','published')
-            ->whereHas('batchLots.batch',function ($b) use ($now) {
+            ->where('products.status', 'published')
+            ->whereHas('batchLots.batch', function ($b) use ($now) {
                 $b->where('auction_batches.status', 'published')
                     ->where('auction_batches.start_at', '<=', $now)
                     ->where('auction_batches.end_at', '>=', $now);
@@ -50,7 +50,7 @@ class ProductController extends Controller
         // Search
         if ($request->filled('q')) {
             $term = $request->string('q');
-            $query->where(function($w) use ($term){
+            $query->where(function ($w) use ($term) {
                 $w->where('product_name', 'like', "%{$term}%")
                     ->orWhere('description', 'like', "%{$term}%");
             });
@@ -73,64 +73,85 @@ class ProductController extends Controller
         $now = now();
 
         $products = Product::query()
-            ->where('products.status', 'published')
+            ->where('status', 'published')
             ->with([
                 'images',
                 'categories',
-                'batches' => fn($q) => $q->select(
-                    'auction_batches.id',
-                    'auction_batches.title',
-                    'auction_batches.start_at',
-                    'auction_batches.end_at',
-                    'auction_batches.status'
-                )
+                'batches' => function ($query) {
+                    $query->select([
+                        'auction_batches.id',
+                        'auction_batches.title',
+                        'auction_batches.start_at',
+                        'auction_batches.end_at',
+                        'auction_batches.status',
+                        // WAJIB TAMBAH INI! Karena many-to-many via pivot
+                        'batch_lots.batch_id',
+                        'batch_lots.product_id',
+                        'batch_lots.lot_number',
+                        'batch_lots.starting_price',
+                        'batch_lots.reserve_price',
+                    ])
+                        ->where('auction_batches.status', 'published');
+                }
             ])
-            ->latest()
+            ->select('id', 'product_name', 'description', 'base_price', 'created_at', 'status')
+            ->latest('created_at')
             ->paginate($request->get('per_page', 12));
 
-        // Map hasil agar FE gampang pake
-        $mapped = $products->through(function ($p) use ($now) {
+        // Transform collection tanpa N+1
+        $products->getCollection()->transform(function ($product) use ($now) {
+            $batches = $product->batches;
 
-            $ongoing = $p->batches()
-                ->where('auction_batches.status', 'published')
-                ->where('auction_batches.start_at', '<=', $now)
-                ->where('auction_batches.end_at', '>=', $now)
+            $ongoing = $batches->first(function ($batch) use ($now) {
+                return $batch->start_at <= $now && $now <= $batch->end_at;
+            });
+
+            $upcoming = $batches->where('start_at', '>', $now)
+                ->sortBy('start_at')
                 ->first();
 
-            $upcoming = $p->batches()
-                ->where('auction_batches.status', 'published')
-                ->where('auction_batches.start_at', '>', $now)
-                ->orderBy('auction_batches.start_at')
-                ->first();
-
-            $ended = $p->batches()
-                ->where('auction_batches.status', 'published')
-                ->where('auction_batches.end_at', '<', $now)
-                ->orderByDesc('auction_batches.end_at')
+            $ended = $batches->where('end_at', '<', $now)
+                ->sortByDesc('end_at')
                 ->first();
 
             return [
-                'id' => $p->id,
-                'product_name' => $p->product_name,
-                'description' => $p->description,
-                'base_price' => $p->base_price,
-                'images' => $p->images,
-                'categories' => $p->categories,
+                'id'            => $product->id,
+                'product_name'  => $product->product_name,
+                'description'   => $product->description,
+                'base_price'    => $product->base_price,
+                'images'        => $product->images,
+                'categories'    => $product->categories,
 
-                'auction_status' =>
-                    $ongoing ? 'ongoing' :
-                    ($upcoming ? 'upcoming' :
-                    ($ended ? 'ended' : 'no_auction')),
+                'auction_status' => $ongoing ? 'ongoing'
+                    : ($upcoming ? 'upcoming'
+                        : ($ended ? 'ended' : 'no_auction')),
 
-                'ongoing_batch' => $ongoing,
-                'upcoming_batch' => $upcoming,
-                'ended_batch' => $ended,
+                'ongoing_batch'  => $ongoing ? [
+                    'id'        => $ongoing->id,
+                    'title'     => $ongoing->title,
+                    'start_at'  => $ongoing->start_at,
+                    'end_at'    => $ongoing->end_at,
+                    'lot_number' => $ongoing->pivot->lot_number ?? null,
+                    'starting_price' => $ongoing->pivot->starting_price ?? null,
+                ] : null,
+
+                'upcoming_batch' => $upcoming ? [
+                    'id'        => $upcoming->id,
+                    'title'     => $upcoming->title,
+                    'start_at'  => $upcoming->start_at,
+                    'lot_number' => $upcoming->pivot->lot_number ?? null,
+                ] : null,
+
+                'ended_batch'    => $ended ? [
+                    'id'        => $ended->id,
+                    'title'     => $ended->title,
+                    'end_at'    => $ended->end_at,
+                ] : null,
             ];
         });
 
-        return response()->json($mapped);
+        return response()->json($products);
     }
-
     /**
      * ============================
      * DETAIL PRODUK
@@ -140,60 +161,65 @@ class ProductController extends Controller
     {
         $now = now();
 
-        $product->load(['images', 'categories', 'batches']);
+        // Load relasi dengan pivot yang benar
+        $product->load([
+            'images',
+            'categories',
+            'batches' => function ($q) {
+                $q->withPivot('lot_number', 'starting_price', 'reserve_price', 'status')
+                    ->where('auction_batches.status', 'published');
+            }
+        ]);
 
-        $onGoingBatch = $product->batches()
-            ->where('auction_batches.status', 'published')
-            ->where('auction_batches.start_at', '<=', $now)
-            ->where('auction_batches.end_at', '>=', $now)
-            ->first();
+        // Cari batch yang SEDANG BERLANGSUNG atau UPCOMING
+        $activeBatch = $product->batches->first(function ($batch) use ($now) {
+            return $batch->status === 'published' &&
+                $batch->start_at && $batch->end_at;
+        });
 
-        $nextBatch = !$onGoingBatch
-            ? $product->batches()
-                ->where('auction_batches.status', 'published')
-                ->where('auction_batches.start_at', '>', $now)
-                ->orderBy('auction_batches.start_at')
-                ->first()
-            : null;
-
-        $activeBatch = $onGoingBatch ?: $nextBatch;
-
-        $lots = collect();
-        if ($activeBatch) {
-            $lots = $product->batchLots()
-                ->where('batch_id', $activeBatch->id)
-                ->orderBy('lot_number')
-                ->get([
-                    'id', 'batch_id', 'product_id', 'lot_number',
-                    'starting_price', 'reserve_price', 'status'
-                ]);
+        // Kalau nggak ada batch published sama sekali
+        if (!$activeBatch) {
+            return response()->json([
+                'product'      => $product,
+                'active_batch' => null,
+                'lots'         => null,
+            ]);
         }
 
-        $meta = null;
-        if ($activeBatch) {
-            $meta = [
-                'batch_id' => $activeBatch->id,
-                'title' => $activeBatch->title,
-                'status' => $activeBatch->status,
-                'start_at' => $activeBatch->start_at,
-                'end_at' => $activeBatch->end_at,
-                'is_ongoing' => $activeBatch->start_at <= $now && $now <= $activeBatch->end_at,
-                'start_in_seconds' => $now->lt($activeBatch->start_at)
-                    ? $now->diffInSeconds($activeBatch->start_at)
-                    : 0,
-                'end_in_seconds' => $now->lt($activeBatch->end_at)
-                    ? $now->diffInSeconds($activeBatch->end_at)
-                    : 0,
-            ];
-        }
+        // Tentukan phase
+        $isOngoing = $activeBatch->start_at <= $now && $now <= $activeBatch->end_at;
+        $isUpcoming = $now < $activeBatch->start_at;
+        // $isEnded = $now > $activeBatch->end_at; (nggak perlu, karena kita ambil yang terdekat)
+
+        // Ambil lot dari batch ini
+        $lot = $product->batchLots()
+            ->where('batch_id', $activeBatch->id)
+            ->first([
+                'id',
+                'lot_number',
+                'starting_price',
+                'reserve_price',
+                'status'
+            ]);
+
+        $meta = [
+            'batch_id'        => $activeBatch->id,
+            'title'           => $activeBatch->title,
+            'start_at'        => $activeBatch->start_at,
+            'end_at'          => $activeBatch->end_at,
+            'status'          => $activeBatch->status,
+            'phase'           => $isOngoing ? 'running' : ($isUpcoming ? 'upcoming' : 'ended'),
+            'lot_number'      => $lot?->lot_number,
+            'starting_price'  => $lot?->starting_price ?? $product->base_price,
+            'reserve_price'   => $lot?->reserve_price,
+        ];
 
         return response()->json([
-            'product' => $product,
+            'product'      => $product,
             'active_batch' => $meta,
-            'lots' => $lots,
+            'lots'         => $lot ? [$lot] : [],
         ]);
     }
-
     /**
      * INDEX / STORE / SHOW / UPDATE / DESTROY
      * (Tidak diubah)
@@ -207,7 +233,7 @@ class ProductController extends Controller
         if ($request->has('category')) {
             $categorySlug = $request->category;
 
-            $query->whereHas('categories', function($q) use ($categorySlug) {
+            $query->whereHas('categories', function ($q) use ($categorySlug) {
                 $q->where('slug', $categorySlug);
             });
         }
@@ -216,7 +242,7 @@ class ProductController extends Controller
         if ($request->has('search')) {
             $searchTerm = $request->search;
 
-            $query->where(function($w) use ($searchTerm) {
+            $query->where(function ($w) use ($searchTerm) {
                 $w->where('product_name', 'like', "%{$searchTerm}%")
                     ->orWhere('description', 'like', "%{$searchTerm}%");
             });
@@ -229,7 +255,7 @@ class ProductController extends Controller
 
         // Pagination
         return response()->json(
-        $query->paginate($request->get('per_page', 15))
+            $query->paginate($request->get('per_page', 15))
         );
     }
 
@@ -248,11 +274,11 @@ class ProductController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors'=>$validator->errors()],422);
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $product = Product::create(
-            $request->only(['seller_id','product_name','description','base_price','status'])
+            $request->only(['seller_id', 'product_name', 'description', 'base_price', 'status'])
         );
 
         if ($request->has('categories')) {
@@ -261,23 +287,23 @@ class ProductController extends Controller
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $i => $image) {
-                $path = $image->store('product_images','public');
+                $path = $image->store('product_images', 'public');
                 $product->images()->create([
-                    'image_url'=>$path,
-                    'sort_order'=>$i
+                    'image_url' => $path,
+                    'sort_order' => $i
                 ]);
             }
         }
 
-        $product->load(['images','categories']);
+        $product->load(['images', 'categories']);
 
-        return response()->json($product,201);
+        return response()->json($product, 201);
     }
 
     public function show($id)
     {
         return response()->json(
-            Product::with(['images','categories','auctionBatches'])->findOrFail($id)
+            Product::with(['images', 'categories', 'auctionBatches'])->findOrFail($id)
         );
     }
 
@@ -298,11 +324,11 @@ class ProductController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors'=>$validator->errors()],422);
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $product->update(
-            $request->only(['seller_id','product_name','description','base_price','status'])
+            $request->only(['seller_id', 'product_name', 'description', 'base_price', 'status'])
         );
 
         if ($request->has('categories')) {
@@ -316,15 +342,15 @@ class ProductController extends Controller
             }
 
             foreach ($request->file('images') as $i => $image) {
-                $path = $image->store('product_images','public');
+                $path = $image->store('product_images', 'public');
                 $product->images()->create([
-                    'image_url'=>$path,
-                    'sort_order'=>$i
+                    'image_url' => $path,
+                    'sort_order' => $i
                 ]);
             }
         }
 
-        $product->load(['images','categories']);
+        $product->load(['images', 'categories']);
 
         return response()->json($product);
     }
@@ -340,6 +366,6 @@ class ProductController extends Controller
         $product->categories()->detach();
         $product->delete();
 
-        return response()->json(['message'=>'Product deleted successfully']);
+        return response()->json(['message' => 'Product deleted successfully']);
     }
 }

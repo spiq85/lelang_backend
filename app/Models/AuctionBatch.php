@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use App\Notifications\AuctionBatchStatusNotification;
+use Attribute;
 
 class AuctionBatch extends Model
 {
@@ -33,6 +34,7 @@ class AuctionBatch extends Model
         'approved_at'       => 'datetime',
         'bid_increment_rule' => 'array',
         'reserve_rule'      => 'array',
+        'status'            => 'string',
     ];
 
     /*
@@ -64,6 +66,16 @@ class AuctionBatch extends Model
                 default          => null,
             };
         });
+    }
+
+    public function setStatusAttribute($value)
+    {
+        $this->attributes['status'] = strtolower($value);
+    }
+
+    public function getStatusAttribute($value)
+    {
+        return strtolower($value);
     }
 
     /*
