@@ -15,21 +15,20 @@ class AuctionBatchController extends Controller
     public function index(Request $request)
     {
         $batches = AuctionBatch::with([
-            'lots' => function ($q) {
-                $q->whereNotNull('product_id')
-                    ->with(['product.images', 'product.categories']);
-            },
+            'lots.lotProducts.product.images',
+            'lots.lotProducts.product.categories',
             'seller' => fn($q) => $q->select('id', 'full_name')
         ])
             ->where('status', 'published')
             ->latest('start_at')
-            ->select('id', 'title', 'start_at', 'end_at', 'status', 'seller_id')
+            ->select('id', 'title', 'description', 'start_at', 'end_at', 'status', 'seller_id')
             ->paginate($request->integer('per_page', 15));
 
         $batches->getCollection()->transform(function ($batch) {
             return [
                 'id'                 => $batch->id,
                 'title'              => $batch->title,
+                'description'        => $batch->description,
                 'start_at'           => $batch->start_at,
                 'end_at'             => $batch->end_at,
                 'status'             => $batch->status,
@@ -39,21 +38,31 @@ class AuctionBatchController extends Controller
                 'ends_in_seconds'    => $batch->ends_in_seconds,
                 'progress_percent'   => $batch->progress_percent,
                 'lots'               => $batch->lots->map(function ($lot) {
+                    $firstProduct = $lot->lotProducts->first()?->product;
                     return [
                         'lot_number'     => $lot->lot_number,
                         'starting_price' => $lot->starting_price,
-                        'product_id'     => $lot->product_id,
-                        'product'        => $lot->product ? [
-                            'id'           => $lot->product->id,
-                            'product_name' => $lot->product->product_name,
-                            'image_url'    => $lot->product->images->first()?->image_url,
+                        'product'        => $firstProduct ? [
+                            'id'           => $firstProduct->id,
+                            'product_name' => $firstProduct->product_name,
+                            'image_url'    => $firstProduct->images->first()?->image_url,
                         ] : null,
                     ];
                 })->values(), // biar index mulai dari 0 lagi
             ];
         });
 
-        return response()->json($batches);
+        return response()->json([
+            'data' => $batches->items(),
+            'pagination' => [
+                'total'       => $batches->total(),
+                'per_page'    => $batches->perPage(),
+                'current_page' => $batches->currentPage(),
+                'last_page'   => $batches->lastPage(),
+                'from'        => $batches->firstItem(),
+                'to'          => $batches->lastItem(),
+            ],
+        ]);
     }
     /**
      * Store a newly created resource in storage.
@@ -73,12 +82,11 @@ class AuctionBatchController extends Controller
         ]);
 
         $batch = AuctionBatch::create([
-            $request,
             'seller_id' => $request['seller_id'],
             'title' => $request['title'],
             'description' => $request['description'],
             'start_at' => $request['start_at'],
-            'end_at' => $request['end_date'],
+            'end_at' => $request['end_at'],
             'bid_increment_rule' => $request['bid_increment_rule'],
             'reserve_rule' => $request['reserve_rule'],
             'status' => $request['status'],
@@ -86,7 +94,7 @@ class AuctionBatchController extends Controller
         ]);
 
         return response()->json(
-            $batch->load(['lots.product.images', 'lots.product.categories']),
+            $batch->load(['lots.lotProducts.product.images', 'lots.lotProducts.product.categories']),
             201
         );
     }
@@ -96,35 +104,105 @@ class AuctionBatchController extends Controller
      */
     public function show($id)
     {
-        $batch = AuctionBatch::with(['lots.product.images', 'lots.product.categories', 'bidSets.user'])
-            ->findOrFail($id);
+        try {
+            $id = (int) $id;
+            if ($id <= 0) {
+                return response()->json([
+                    'message' => 'ID batch tidak valid',
+                    'error' => 'ERR_INVALID_ID'
+                ], 400);
+            }
 
-        $lotSummaries = $batch->lots->map(function ($lot) {
-            $highest = $lot->bidItems()
-                ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
-                ->where('bid_sets.status', 'valid')
-                ->orderByDesc('bid_amount')
-                ->orderBy('bid_sets.submitted_at')
-                ->first();
+            $batch = AuctionBatch::with([
+                'lots.lotProducts.product.images',
+                'lots.lotProducts.product.categories',
+                'bidSets.user',
+                'bidSets.items'
+            ])->findOrFail($id);
 
-            return [
-                'lot_id' => $lot->id,
-                'lot_number' => $lot->lot_number,
-                'current_highest' => $highest?->bid_amount,
-            ];
-        });
+            // Get highest bid per lot
+            $lotSummaries = $batch->lots->map(function ($lot) {
+                $highest = $lot->bidItems()
+                    ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
+                    ->where('bid_sets.status', 'valid')
+                    ->orderByDesc('bid_amount')
+                    ->orderBy('bid_sets.submitted_at')
+                    ->first();
 
-        return response()->json([
-            'batch' => array_merge($batch->toArray(), [
-                'now' => now()->toIso8601String(),
-                'phase' => $batch->phase,
-                'starts_in_seconds' => $batch->starts_in_seconds,
-                'ends_in_seconds' => $batch->ends_in_seconds,
-                'progress_percent' => $batch->progress_percent,
-            ]),
-            'lots' => $batch->lots,
-            'summaries' => $lotSummaries,
-        ]);
+                return [
+                    'lot_id' => $lot->id,
+                    'lot_number' => $lot->lot_number,
+                    'current_highest' => $highest?->bid_amount,
+                ];
+            });
+
+            // Transform lots to include product details
+            $lotsWithProducts = $batch->lots->map(function ($lot) {
+                // Get first product from lotProducts if exists
+                $firstProduct = $lot->lotProducts->first()?->product;
+                
+                return [
+                    'id' => $lot->id,
+                    'lot_number' => $lot->lot_number,
+                    'starting_price' => $lot->starting_price,
+                    'reserve_price' => $lot->reserve_price,
+                    'status' => $lot->status,
+                    'product' => $firstProduct ? [
+                        'id' => $firstProduct->id,
+                        'product_name' => $firstProduct->product_name,
+                        'description' => $firstProduct->description ?? null,
+                        'images' => $firstProduct->images ?? [],
+                        'categories' => $firstProduct->categories ?? [],
+                    ] : null,
+                ];
+            });
+
+            return response()->json([
+                'data' => [
+                    'id' => $batch->id,
+                    'title' => $batch->title,
+                    'description' => $batch->description,
+                    'status' => $batch->status,
+                    'start_at' => $batch->start_at,
+                    'end_at' => $batch->end_at,
+                    'bid_increment_rule' => $batch->bid_increment_rule,
+                    'reserve_rule' => $batch->reserve_rule,
+                    'seller' => $batch->seller,
+                    'phase' => $batch->phase,
+                    'starts_in_seconds' => $batch->starts_in_seconds,
+                    'ends_in_seconds' => $batch->ends_in_seconds,
+                    'progress_percent' => $batch->progress_percent,
+                    'now' => now()->toIso8601String(),
+                    'lots' => $lotsWithProducts,
+                    'bid_sets' => $batch->bidSets->map(function ($bs) {
+                        return [
+                            'id' => $bs->id,
+                            'user' => $bs->user,
+                            'submitted_at' => $bs->submitted_at,
+                            'status' => $bs->status,
+                            'items' => $bs->items->map(function ($item) {
+                                return [
+                                    'id' => $item->id,
+                                    'lot_id' => $item->lot_id,
+                                    'bid_amount' => $item->bid_amount,
+                                ];
+                            }),
+                        ];
+                    }),
+                    'summaries' => $lotSummaries,
+                ],
+            ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Batch tidak ditemukan',
+                'error' => 'ERR_NOT_FOUND'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
+                'error' => 'ERR_SERVER'
+            ], 500);
+        }
     }
 
     /**
@@ -150,8 +228,8 @@ class AuctionBatchController extends Controller
 
         return response()->json(
             $batch->load([
-                'lots.product.images',
-                'lots.product.categories'
+                'lots.lotProducts.product.images',
+                'lots.lotProducts.product.categories'
             ])
         );
     }

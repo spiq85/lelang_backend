@@ -26,11 +26,16 @@ Route::post('login', [AuthController::class, 'login']);
 Route::get('/home', [HomeController::class, 'index']);
 Route::get('/home', [HomeController::class, 'trending']);
 
-// =====================
+// =======================
 // Banner Routes
 // =====================
 Route::get('/banners', [BannerController::class, 'index']);
 
+// =======================
+// Public Auction Routes (tidak perlu auth)
+// =======================
+Route::get('auction-batches', [AuctionBatchController::class, 'index']);
+Route::get('auction-batches/{batch}', [AuctionBatchController::class, 'show']);
 
 
 // =======================
@@ -69,15 +74,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('products/{product}/detail', [ProductController::class, 'detail']);
 
     // =======================
-    // Auction Bidding
+    // Auction Bidding (requires auth)
     // =======================
-    Route::get('auction-batches', [AuctionBatchController::class, 'index']);
-    Route::get('auction-batches/{batch}', [AuctionBatchController::class, 'show']);
-
     // Submit bid untuk seluruh batch (opsional)
     Route::post('auction-batches/{batch}/submit-bid-set', [BidSetController::class, 'submit']);
 
-    // ✅ Tambahan baru: submit bid untuk satu lot
+    // Submit bid untuk satu lot
     Route::post('auction-batches/{batchId}/lots/{lotId}/submit-bid', [BidSetController::class, 'submitPerLot']);
 
     Route::get('me/notifications', [NotificationController::class, 'index']);

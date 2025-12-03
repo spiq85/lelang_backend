@@ -172,7 +172,7 @@ class ProductController extends Controller
         ]);
 
         // Cari batch yang SEDANG BERLANGSUNG atau UPCOMING
-        $activeBatch = $product->batches->first(function ($batch) use ($now) {
+        $activeBatch = $product->batches->first(function ($batch) use ($now) {  
             return $batch->status === 'published' &&
                 $batch->start_at && $batch->end_at;
         });
