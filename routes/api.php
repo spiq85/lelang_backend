@@ -112,4 +112,6 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
 
     // Pilih pemenang lot
     Route::post('admin/lots/{lotId}/select-winner', [AdminWinnerController::class, 'select']);
+
+  
 });

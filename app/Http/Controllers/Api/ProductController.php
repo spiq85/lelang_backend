@@ -65,14 +65,14 @@ class ProductController extends Controller
 
     /**
      * ============================
-     * PRODUCT LISTING BARU (SELALU ADA)
+     * PRODUCT LISTING DENGAN FILTER LENGKAP
      * ============================
      */
     public function listing(Request $request)
     {
         $now = now();
 
-        $products = Product::query()
+        $query = Product::query()
             ->where('status', 'published')
             ->with([
                 'images',
@@ -91,14 +91,70 @@ class ProductController extends Controller
                         'batch_lots.starting_price',
                         'batch_lots.reserve_price',
                     ])
-                        ->where('auction_batches.status', 'published');
+                    ->where('auction_batches.status', 'published');
                 }
             ])
-            ->select('id', 'product_name', 'description', 'base_price', 'created_at', 'status')
-            ->latest('created_at')
-            ->paginate($request->get('per_page', 12));
+            ->select('id', 'product_name', 'description', 'base_price', 'created_at', 'status');
 
-        // Transform collection tanpa N+1
+        // ========== FILTER PENCARIAN ==========
+        // Frontend mengirim parameter 'q' untuk search
+        if ($request->filled('q')) {
+            $searchTerm = $request->input('q');
+            $searchTerm = trim($searchTerm);
+            
+            $query->where(function ($w) use ($searchTerm) {
+                $w->where('product_name', 'like', "%{$searchTerm}%")
+                  ->orWhere('description', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        // ========== FILTER KATEGORI ==========
+        if ($request->filled('category')) {
+            $slug = $request->input('category');
+            $query->whereHas('categories', function ($q) use ($slug) {
+                $q->where('slug', $slug);
+            });
+        }
+
+        // ========== FILTER HARGA ==========
+        if ($request->filled('min_price')) {
+            $minPrice = $request->input('min_price');
+            if (is_numeric($minPrice)) {
+                $query->where('base_price', '>=', $minPrice);
+            }
+        }
+
+        if ($request->filled('max_price')) {
+            $maxPrice = $request->input('max_price');
+            if (is_numeric($maxPrice)) {
+                $query->where('base_price', '<=', $maxPrice);
+            }
+        }
+
+        // ========== SORTING ==========
+        $sortField = $request->get('sort', 'created_at');
+        $sortDirection = $request->get('direction', 'desc');
+        
+        // Validasi field sorting
+        $allowedSortFields = ['created_at', 'product_name', 'base_price'];
+        if (!in_array($sortField, $allowedSortFields)) {
+            $sortField = 'created_at';
+        }
+        
+        // Validasi direction
+        $sortDirection = strtolower($sortDirection);
+        if (!in_array($sortDirection, ['asc', 'desc'])) {
+            $sortDirection = 'desc';
+        }
+        
+        $query->orderBy($sortField, $sortDirection);
+
+        // ========== PAGINATION ==========
+        $perPage = $request->get('per_page', 12);
+        $perPage = min($perPage, 100); // Limit max 100 per page
+        $products = $query->paginate($perPage);
+
+        // ========== TRANSFORM DATA ==========
         $products->getCollection()->transform(function ($product) use ($now) {
             $batches = $product->batches;
 
@@ -152,6 +208,7 @@ class ProductController extends Controller
 
         return response()->json($products);
     }
+
     /**
      * ============================
      * DETAIL PRODUK
@@ -220,9 +277,11 @@ class ProductController extends Controller
             'lots'         => $lot ? [$lot] : [],
         ]);
     }
+
     /**
+     * ============================
      * INDEX / STORE / SHOW / UPDATE / DESTROY
-     * (Tidak diubah)
+     * ============================
      */
 
     public function index(Request $request)
@@ -238,24 +297,39 @@ class ProductController extends Controller
             });
         }
 
-        // Search
-        if ($request->has('search')) {
-            $searchTerm = $request->search;
+        // Search - support both 'q' and 'search' parameters
+        if ($request->filled('q') || $request->filled('search')) {
+            $searchTerm = $request->filled('q') ? $request->input('q') : $request->input('search');
+            $searchTerm = trim($searchTerm);
 
             $query->where(function ($w) use ($searchTerm) {
                 $w->where('product_name', 'like', "%{$searchTerm}%")
-                    ->orWhere('description', 'like', "%{$searchTerm}%");
+                  ->orWhere('description', 'like', "%{$searchTerm}%");
             });
         }
 
         // Sorting
         $sortField = $request->get('sort', 'created_at');
         $sortDirection = $request->get('direction', 'desc');
+        
+        $allowedSortFields = ['created_at', 'product_name', 'base_price'];
+        if (!in_array($sortField, $allowedSortFields)) {
+            $sortField = 'created_at';
+        }
+        
+        $sortDirection = strtolower($sortDirection);
+        if (!in_array($sortDirection, ['asc', 'desc'])) {
+            $sortDirection = 'desc';
+        }
+        
         $query->orderBy($sortField, $sortDirection);
 
         // Pagination
+        $perPage = $request->get('per_page', 15);
+        $perPage = min($perPage, 100);
+        
         return response()->json(
-            $query->paginate($request->get('per_page', 15))
+            $query->paginate($perPage)
         );
     }
 
