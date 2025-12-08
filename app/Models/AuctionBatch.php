@@ -144,6 +144,14 @@ class AuctionBatch extends Model
         return $this->hasMany(BidSet::class, 'batch_id');
     }
 
+   public function products()
+    {
+        return $this->belongsToMany(Product::class, 'batch_lots', 'batch_id', 'product_id')
+                    ->withPivot('lot_number', 'starting_price', 'reserve_price', 'status')
+                    ->withTimestamps()
+                    ->with(['coverImage', 'seller']);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Scopes & State Helpers

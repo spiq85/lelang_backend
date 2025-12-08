@@ -23,8 +23,9 @@ Route::post('login', [AuthController::class, 'login']);
 // =====================
 // Home Routes
 // =====================
-Route::get('/home', [HomeController::class, 'index']);
-Route::get('/home', [HomeController::class, 'trending']);
+Route::get('/home/closed', [HomeController::class, 'closed']);
+Route::get('/home/trending', [HomeController::class, 'trending']);
+
 
 // =======================
 // Banner Routes
