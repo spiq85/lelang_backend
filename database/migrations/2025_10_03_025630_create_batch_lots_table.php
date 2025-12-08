@@ -13,7 +13,7 @@ return new class extends Migration {
             $t->foreignId('product_id')->constrained('products')->nullable()->restrictOnDelete();
 
             // Penomoran lot unik per batch (Lot #1, #2, ...)
-            $t->unsignedInteger('lot_number');
+            $t->Integer('lot_number');
 
             // ANGKA per-lot (bukan di batch)
             $t->decimal('starting_price', 18, 2);
