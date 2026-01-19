@@ -39,7 +39,7 @@ class ProductResource extends Resource
         return ProductsTable::configure($table);
     }
 
-    // VIEW (modal) — definisikan INFOLIST di sini
+    // VIEW (modal) — definisikan INFOLIST di sini    
     public static function infolist(\Filament\Schemas\Schema $infolist): \Filament\Schemas\Schema
 {
     return $infolist->schema([
