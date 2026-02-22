@@ -9,9 +9,6 @@ use Illuminate\Support\Facades\Validator;
 
 class AuctionBatchController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $batches = AuctionBatch::with([

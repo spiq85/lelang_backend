@@ -29,17 +29,11 @@ use UnitEnum;
 class BannerResource extends Resource
 {
     protected static ?string $model = Banner::class;
-
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedPhoto;
     protected static ?string $navigationLabel = 'Banners';
     protected static string|UnitEnum|null $navigationGroup = 'Marketing';
     protected static ?string $recordTitleAttribute = 'title';
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🧩 FORM
-    |--------------------------------------------------------------------------
-    */
     public static function form(Schema $schema): Schema
     {
         return $schema
@@ -61,7 +55,7 @@ class BannerResource extends Resource
                     FileUpload::make('image_path')
                         ->label('Banner Image')
                         ->image()
-                        ->disk('public') // simpan di storage/app/public
+                        ->disk('public')
                         ->directory('banners/' . now()->format('Y/m'))
                         ->visibility('public')
                         ->required()
@@ -95,22 +89,14 @@ class BannerResource extends Resource
             ]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🧩 TABLE
-    |--------------------------------------------------------------------------
-    */
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                // ✅ perbaikan utama di sini
                 ImageColumn::make('image_path')
                     ->label('Image')
                     ->getStateUsing(function ($record) {
                         $path = $record->image_path;
-
-                        // normalisasi path supaya bisa diakses via asset('storage/')
                         $path = preg_replace('#^https?://[^/]+/storage/#', '', (string) $path);
                         $path = preg_replace('#^storage/#', '', $path);
                         $path = ltrim($path, '/');
@@ -167,11 +153,6 @@ class BannerResource extends Resource
             ]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | 🧩 PAGES
-    |--------------------------------------------------------------------------
-    */
     public static function getPages(): array
     {
         return [

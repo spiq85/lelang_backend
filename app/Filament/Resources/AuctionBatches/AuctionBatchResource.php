@@ -18,39 +18,39 @@ use UnitEnum;
 
 
 class AuctionBatchResource extends Resource
-{
-    protected static ?string $model = AuctionBatch::class;
-
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
-    protected static ?string $recordTitleAttribute = 'title';
-    protected static string|UnitEnum|null $navigationGroup = 'Auction Management';
-
-    public static function form(Schema $schema): Schema
     {
-        return AuctionBatchForm::configure($schema);
-    }
+        protected static ?string $model = AuctionBatch::class;
 
-    public static function table(Table $table): Table
-    {
-        return AuctionBatchesTable::configure($table);
-    }
+        protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentList;
+        protected static ?string $recordTitleAttribute = 'title';
+        protected static string|UnitEnum|null $navigationGroup = 'Auction Management';
 
-    public static function getEloquentQuery(): Builder
-    {
-        $user = auth()->user();
+        public static function form(Schema $schema): Schema
+        {
+            return AuctionBatchForm::configure($schema);
+        }
 
-        return parent::getEloquentQuery()
-            ->when($user->role === 'seller', fn ($query) =>
-                $query->where('seller_id', $user->id)
-            );
-    }
+        public static function table(Table $table): Table
+        {
+            return AuctionBatchesTable::configure($table);
+        }
 
-    public static function getPages(): array
-    {
-        return [
-            'index' => ListAuctionBatches::route('/'),
-            'create' => CreateAuctionBatch::route('/create'),
-            'edit' => EditAuctionBatch::route('/{record}/edit'),
-        ];
+        public static function getEloquentQuery(): Builder
+        {
+            $user = auth()->user();
+
+            return parent::getEloquentQuery()
+                ->when($user->role === 'seller', fn ($query) =>
+                    $query->where('seller_id', $user->id)
+                );
+        }
+
+        public static function getPages(): array
+        {
+            return [
+                'index' => ListAuctionBatches::route('/'),
+                'create' => CreateAuctionBatch::route('/create'),
+                'edit' => EditAuctionBatch::route('/{record}/edit'),
+            ];
+        }
     }
-}
