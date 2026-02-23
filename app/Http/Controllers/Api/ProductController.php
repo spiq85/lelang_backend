@@ -94,7 +94,12 @@ class ProductController extends Controller
                     ->where('auction_batches.status', 'published');
                 }
             ])
-            ->select('id', 'product_name', 'description', 'base_price', 'created_at', 'status');
+            ->select('id', 'product_name', 'description', 'base_price', 'created_at', 'status', 'is_trending');
+
+            // ========== FILTER TRENDING ==========
+            if ($request->boolean('trending')) {
+                $query->where('is_trending', true);
+            }
 
         // ========== FILTER PENCARIAN ==========
         // Frontend mengirim parameter 'q' untuk search
