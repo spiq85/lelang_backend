@@ -14,26 +14,37 @@ class LotWinnersTable
     {
         return $table
             ->columns([
-                TextColumn::make('lot_id')
-                    ->numeric()
+                TextColumn::make('lot.batch.title')
+                    ->label('Batch')
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('winner_user_id')
-                    ->numeric()
+                TextColumn::make('lot.lot_number')
+                    ->label('Lot #')
+                    ->badge()
+                    ->color('primary')
                     ->sortable(),
+                TextColumn::make('winner.full_name')
+                    ->label('Pemenang')
+                    ->searchable()
+                    ->sortable()
+                    ->icon('heroicon-o-trophy')
+                    ->color('success'),
                 TextColumn::make('winning_bid_amount')
-                    ->numeric()
+                    ->label('Nominal Bid')
+                    ->money('IDR', locale: 'id_ID')
                     ->sortable(),
-                TextColumn::make('choosen_by')
-                    ->numeric()
+                TextColumn::make('chooser.full_name')
+                    ->label('Ditentukan Oleh')
                     ->sortable(),
+                TextColumn::make('reason')
+                    ->label('Alasan')
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('decided_at')
-                    ->dateTime()
+                    ->label('Waktu Keputusan')
+                    ->dateTime('d M Y H:i')
                     ->sortable(),
                 TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),

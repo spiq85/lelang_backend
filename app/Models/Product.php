@@ -60,4 +60,8 @@ class Product extends Model
     public function coverImage() {
         return $this->hasOne(ProductImage::class)->orderBy('sort_order');
     }
+
+    public function bidItems() {
+        return $this->hasMany(BidItem::class, 'product_id');
+    }
 }

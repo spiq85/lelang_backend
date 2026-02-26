@@ -3,13 +3,10 @@
 namespace App\Notifications;
 
 use App\Models\AuctionBatch;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class BatchEndingSoonNotification extends Notification implements ShouldQueue
+class BatchEndingSoonNotification extends Notification
 {
-    use Queueable;
 
     public function __construct(public AuctionBatch $batch)
     {

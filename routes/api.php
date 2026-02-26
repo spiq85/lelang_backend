@@ -63,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('user/profile', [UserController::class, 'profile']);
     Route::put('user/profile', [UserController::class, 'updateProfile']);
     Route::post('user/change-password', [UserController::class, 'changePassword']);
+    Route::get('user/profile-stats', [UserController::class, 'profileStats']);
     Route::get('user/auction-history', [UserController::class, 'auctionHistory']);
     Route::post('user/upload-payment-proof/{bidId}', [UserController::class, 'uploadPaymentProof']);
 

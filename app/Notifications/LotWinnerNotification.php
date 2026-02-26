@@ -3,14 +3,10 @@
 namespace App\Notifications;
 
 use App\Models\LotWinner;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\DatabaseMessage;
 
-class LotWinnerNotification extends Notification implements ShouldQueue
+class LotWinnerNotification extends Notification
 {
-    use Queueable;
 
     public function __construct(public LotWinner $winner)
     {

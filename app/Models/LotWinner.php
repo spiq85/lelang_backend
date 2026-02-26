@@ -19,7 +19,7 @@ class LotWinner extends Model
         'decided_at',
     ];
 
-    protected $cast = [
+    protected $casts = [
         'winning_bid_amount' => 'decimal:2',
         'decided_at' => 'datetime'
     ];

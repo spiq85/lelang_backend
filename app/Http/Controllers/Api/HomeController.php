@@ -38,9 +38,19 @@ class HomeController extends Controller
         $trending = Product::where('is_trending', true)
             ->where('status', 'published')
             ->with(['images', 'seller'])
+            ->withCount(['bidItems as bids_count'])
             ->orderBy('trending_order')
             ->limit(10)
-            ->get();
+            ->get()
+            ->map(function ($product) {
+                $product->images->transform(function ($image) {
+                    if ($image->image_url && !str_starts_with($image->image_url, '/storage/') && !str_starts_with($image->image_url, 'http')) {
+                        $image->image_url = '/storage/' . $image->image_url;
+                    }
+                    return $image;
+                });
+                return $product;
+            });
 
         return response()->json([
             'trending' => $trending

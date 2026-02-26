@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\BidSet;
+use App\Models\LotWinner;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -199,6 +200,22 @@ class UserController extends Controller
     }
 
     /**
+     * Get bidder profile stats (wins count + total spent from lot_winners)
+     */
+    public function profileStats()
+    {
+        $userId = auth()->id();
+
+        $wonCount = LotWinner::where('winner_user_id', $userId)->count();
+        $totalSpent = (float) LotWinner::where('winner_user_id', $userId)->sum('winning_bid_amount');
+
+        return response()->json([
+            'won_count' => $wonCount,
+            'total_spent' => $totalSpent,
+        ]);
+    }
+
+    /**
      * Get user's auction history
      */
     public function auctionHistory(Request $request)
@@ -206,7 +223,7 @@ class UserController extends Controller
         $user = auth()->user();
 
         $bids = $user->bids()
-            ->with(['batch.product', 'batch.seller'])
+            ->with(['batch.products', 'batch.seller', 'items.product'])
             ->orderByDesc('submitted_at')
             ->paginate($request->get('per_page', 15));
 

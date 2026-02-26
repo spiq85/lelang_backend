@@ -97,6 +97,7 @@ class AuctionBatchController extends Controller
             $batch = AuctionBatch::with([
                 'lots.lotProducts.product.images',
                 'lots.lotProducts.product.categories',
+                'lots.winner.winner',
                 'bidSets.user',
                 'bidSets.items'
             ])->findOrFail($id);
@@ -104,6 +105,7 @@ class AuctionBatchController extends Controller
             // Get highest bid per product in each lot
             $lotSummaries = [];
             $highestMap = [];
+            $highestBidderMap = [];
             foreach ($batch->lots as $lot) {
                 foreach ($lot->lotProducts as $lotProduct) {
                     $product = $lotProduct->product;
@@ -111,21 +113,27 @@ class AuctionBatchController extends Controller
                         continue;
                     }
 
-                    $highest = BidItem::where('lot_id', $lot->id)
-                        ->where('product_id', $product->id)
+                    $topBid = BidItem::where('bid_items.lot_id', $lot->id)
+                        ->where('bid_items.product_id', $product->id)
                         ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
+                        ->join('users', 'users.id', '=', 'bid_sets.user_id')
                         ->where('bid_sets.status', 'valid')
-                        ->max('bid_amount');
+                        ->orderByDesc('bid_items.bid_amount')
+                        ->select('bid_items.bid_amount', 'users.full_name')
+                        ->first();
 
-                    $currentHighest = $highest ? (float) $highest : 0;
+                    $currentHighest = $topBid ? (float) $topBid->bid_amount : 0;
+                    $highestBidder = $topBid ? $topBid->full_name : null;
                     $key = $lot->id . '-' . $product->id;
                     $highestMap[$key] = $currentHighest;
+                    $highestBidderMap[$key] = $highestBidder;
 
                     $lotSummaries[] = [
                         'lot_id' => $lot->id,
                         'product_id' => $product->id,
                         'lot_number' => $lot->lot_number,
                         'current_highest' => $currentHighest,
+                        'highest_bidder' => $highestBidder,
                     ];
                 }
             }
@@ -134,18 +142,20 @@ class AuctionBatchController extends Controller
             $lotsWithProducts = [];
             foreach ($batch->lots as $lot) {
                 // FIX: Ambil SEMUA products dalam lot dengan harga per-product dari batch_lot_products
-                $allProducts = $lot->lotProducts->map(function($lotProduct) use ($highestMap) {
+                $allProducts = $lot->lotProducts->map(function($lotProduct) use ($highestMap, $highestBidderMap) {
                     $product = $lotProduct->product;
                     $key = $product ? $lotProduct->batch_lot_id . '-' . $product->id : null;
                     $currentHighest = $key && isset($highestMap[$key]) ? $highestMap[$key] : 0;
+                    $highestBidder = $key && isset($highestBidderMap[$key]) ? $highestBidderMap[$key] : null;
                     return $product ? [
                         'id' => $product->id,
                         'product_name' => $product->product_name,
                         'description' => $product->description ?? '',
                         'base_price' => $product->base_price ? (float) $product->base_price : 0,
-                        'starting_price' => (float) ($lotProduct->starting_price ?? 0), // ✅ Dari batch_lot_products
-                        'reserve_price' => $lotProduct->reserve_price ? (float) $lotProduct->reserve_price : null, // ✅ Dari batch_lot_products
+                        'starting_price' => (float) ($lotProduct->starting_price ?? 0),
+                        'reserve_price' => $lotProduct->reserve_price ? (float) $lotProduct->reserve_price : null,
                         'current_highest' => $currentHighest,
+                        'highest_bidder' => $highestBidder,
                         'images' => $product->images->map(function($image) {
                             return [
                                 'id' => $image->id,
@@ -184,6 +194,11 @@ class AuctionBatchController extends Controller
                     'starting_price' => $startingPrice, // ✅ PASTI ADA NILAI
                     'reserve_price' => $lot->reserve_price ? (float) $lot->reserve_price : null,
                     'status' => $lot->status,
+                    'winner' => $lot->winner ? [
+                        'id' => $lot->winner->id,
+                        'winner_name' => $lot->winner->winner?->full_name ?? '-',
+                        'winning_bid_amount' => (float) $lot->winner->winning_bid_amount,
+                    ] : null,
                     'products' => $allProducts, // ✅ SEMUA PRODUCTS dengan harga per-product
                     'product' => $firstProduct ? [ // Backward compatibility
                         'id' => $firstProduct->id,

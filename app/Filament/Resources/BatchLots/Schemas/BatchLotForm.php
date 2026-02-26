@@ -5,7 +5,6 @@ namespace App\Filament\Resources\BatchLots\Schemas;
 use Filament\Forms;
 use Filament\Schemas\Schema;
 use App\Models\Product;
-use Filament\Actions\Action;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Illuminate\Support\HtmlString;
@@ -29,8 +28,13 @@ class BatchLotForm
                 ->label('Lot Number')
                 ->numeric()
                 ->required()
-                ->reactive()          // <— agar repeater bisa re-validate saat berubah
-                ->minValue(1),
+                ->minValue(1)
+                ->default(function () {
+                    // Auto-generate: ambil lot_number tertinggi + 1
+                    $max = \App\Models\BatchLot::max('lot_number') ?? 0;
+                    return $max + 1;
+                })
+                ->helperText('Nomor urut lot (auto-generated, bisa diubah)'),
 
             /* ---------- hidden field utama (aman DB) ---------- */
             Forms\Components\Hidden::make('product_id')->default(null),
@@ -108,28 +112,6 @@ class BatchLotForm
                         ->itemLabel(fn (array $state) => Product::find($state['product_id'] ?? null)?->product_name ?? 'Produk Baru')
                         ->minItems(1)
                         ->maxItems(50)
-
-                        /* ======  CORE : validasi & tombol dinamis  ====== */
-                        ->rules(function (callable $get) {
-                            return [
-                                function ($attribute, $value, $fail) use ($get) {
-                                    $max = (int) $get('lot_number');
-                                    if (!$max) {
-                                        $fail('Isi Lot Number terlebih dahulu.');
-                                        return;
-                                    }
-                                    if (count($value) > $max) {
-                                        $fail("Maksimal {$max} produk sesuai Lot Number.");
-                                    }
-                                },
-                            ];
-                        })
-
-                        ->addAction(function (Action $action, callable $get) {
-                            // sembunyikan tombol saat jumlah bar == lot_number
-                            $action->visible(fn () => count($get('lotProducts') ?? []) < (int) $get('lot_number'));
-                        })
-
                         ->addActionLabel('Tambah Produk Lagi')
                         ->deleteAction(fn ($action) => $action->requiresConfirmation()),
                 ]),

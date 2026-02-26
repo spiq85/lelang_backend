@@ -6,7 +6,6 @@ use App\Models\BatchLot;
 use App\Models\BidItem;
 use App\Models\LotWinner;
 use App\Notifications\LotWinnerNotification;
-use Filament\Actions\Action as ActionsAction;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Tables\Actions\Action;
@@ -14,9 +13,9 @@ use Illuminate\Support\Facades\DB;
 
 class LotWinnerAction
 {
-    public static function make(): ActionsAction
+    public static function make(): Action
     {
-        return ActionsAction::make('select_winner')
+        return Action::make('select_winner')
             ->label('Select Winner')
             ->icon('heroicon-o-trophy')
             ->color('success')
