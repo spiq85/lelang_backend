@@ -4,7 +4,9 @@ namespace App\Filament\Resources\Categories\Schemas;
 
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Select;
 use Filament\Schemas\Schema;
+use App\Models\Category;
 
 class CategoryForm
 {
@@ -17,8 +19,18 @@ class CategoryForm
                     ->columnSpanFull(),
                 TextInput::make('slug')
                     ->required(),
-                TextInput::make('parent_id')
-                    ->numeric(),
+                Select::make('parent_id')
+                    ->label('Parent Category')
+                    ->relationship(
+                        'parent',
+                        'name',
+                        fn ($query) => $query->whereNull('parent_id')
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->placeholder('Pilih parent category (opsional)')
+                    ->nullable()
+                    ->helperText('Kosongkan jika ini adalah kategori utama'),
             ]);
     }
 }

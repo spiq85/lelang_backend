@@ -8,7 +8,7 @@ use App\Models\LotWinner;
 use App\Notifications\LotWinnerNotification;
 use Filament\Forms;
 use Filament\Notifications\Notification;
-use Filament\Tables\Actions\Action;
+use Filament\Actions\Action;
 use Illuminate\Support\Facades\DB;
 
 class LotWinnerAction
