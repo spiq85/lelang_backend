@@ -120,9 +120,36 @@ class AuctionBatchController extends Controller
             // Transform lots dengan FALLBACK LOGIC
             $lotsWithProducts = [];
             foreach ($batch->lots as $lot) {
+                // FIX: Ambil SEMUA products dalam lot dengan harga per-product dari batch_lot_products
+                $allProducts = $lot->lotProducts->map(function($lotProduct) {
+                    $product = $lotProduct->product;
+                    return $product ? [
+                        'id' => $product->id,
+                        'product_name' => $product->product_name,
+                        'description' => $product->description ?? '',
+                        'base_price' => $product->base_price ? (float) $product->base_price : 0,
+                        'starting_price' => (float) ($lotProduct->starting_price ?? 0), // ✅ Dari batch_lot_products
+                        'reserve_price' => $lotProduct->reserve_price ? (float) $lotProduct->reserve_price : null, // ✅ Dari batch_lot_products
+                        'images' => $product->images->map(function($image) {
+                            return [
+                                'id' => $image->id,
+                                'image_url' => $image->image_url ? '/storage/' . $image->image_url : null,
+                                'sort_order' => $image->sort_order
+                            ];
+                        })->toArray(),
+                        'categories' => $product->categories->map(function($category) {
+                            return [
+                                'id' => $category->id,
+                                'name' => $category->name,
+                                'slug' => $category->slug
+                            ];
+                        })->toArray(),
+                    ] : null;
+                })->filter()->values()->toArray();
+                
                 $firstProduct = $lot->lotProducts->first()?->product;
                 
-                // FALLBACK LOGIC untuk starting_price
+                // FALLBACK LOGIC untuk starting_price lot (jika tidak ada di products)
                 $startingPrice = (float) $lot->starting_price;
                 
                 // Jika starting_price kosong, coba dari product base_price
@@ -141,15 +168,18 @@ class AuctionBatchController extends Controller
                     'starting_price' => $startingPrice, // ✅ PASTI ADA NILAI
                     'reserve_price' => $lot->reserve_price ? (float) $lot->reserve_price : null,
                     'status' => $lot->status,
-                    'product' => $firstProduct ? [
+                    'products' => $allProducts, // ✅ SEMUA PRODUCTS dengan harga per-product
+                    'product' => $firstProduct ? [ // Backward compatibility
                         'id' => $firstProduct->id,
                         'product_name' => $firstProduct->product_name,
                         'description' => $firstProduct->description ?? '',
                         'base_price' => $firstProduct->base_price ? (float) $firstProduct->base_price : 0,
+                        'starting_price' => $allProducts[0]['starting_price'] ?? (float) ($lot->lotProducts->first()?->starting_price ?? 0),
+                        'reserve_price' => $allProducts[0]['reserve_price'] ?? null,
                         'images' => $firstProduct->images->map(function($image) {
                             return [
                                 'id' => $image->id,
-                                'image_url' => $image->image_url,
+                                'image_url' => $image->image_url ? '/storage/' . $image->image_url : null,
                                 'sort_order' => $image->sort_order
                             ];
                         })->toArray(),
