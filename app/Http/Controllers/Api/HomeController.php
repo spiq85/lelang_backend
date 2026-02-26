@@ -16,7 +16,6 @@ class HomeController extends Controller
             ->limit(10)
             ->get();
 
-        // KITA BERSIHKAN & FLATTEN SUPAYA 100% PASTI BISA DI-LOOP DI FRONTEND
         $products = $batches->pluck('products')->flatten()->take(15);
 
         $cleanProducts = $products->map(function ($product) {

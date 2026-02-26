@@ -41,10 +41,18 @@ class ProductController extends Controller
                     ->where('auction_batches.status', 'published'),
             ]);
 
-        // Filter kategori
+        // Filter kategori (termasuk child categories)
         if ($request->filled('category')) {
             $slug = $request->string('category');
-            $query->whereHas('categories', fn($q) => $q->where('slug', $slug));
+            $category = \App\Models\Category::where('slug', $slug)->first();
+            if ($category) {
+                $categoryIds = collect([$category->id])
+                    ->merge($category->children()->pluck('id'))
+                    ->toArray();
+                $query->whereHas('categories', fn($q) => $q->whereIn('categories.id', $categoryIds));
+            } else {
+                $query->whereHas('categories', fn($q) => $q->where('slug', $slug));
+            }
         }
 
         // Search
@@ -113,12 +121,22 @@ class ProductController extends Controller
             });
         }
 
-        // ========== FILTER KATEGORI ==========
+        // ========== FILTER KATEGORI (termasuk child categories) ==========
         if ($request->filled('category')) {
             $slug = $request->input('category');
-            $query->whereHas('categories', function ($q) use ($slug) {
-                $q->where('slug', $slug);
-            });
+            $category = \App\Models\Category::where('slug', $slug)->first();
+            if ($category) {
+                $categoryIds = collect([$category->id])
+                    ->merge($category->children()->pluck('id'))
+                    ->toArray();
+                $query->whereHas('categories', function ($q) use ($categoryIds) {
+                    $q->whereIn('categories.id', $categoryIds);
+                });
+            } else {
+                $query->whereHas('categories', function ($q) use ($slug) {
+                    $q->where('slug', $slug);
+                });
+            }
         }
 
         // ========== FILTER HARGA ==========

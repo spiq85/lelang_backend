@@ -12,7 +12,7 @@ class NotificationController extends Controller
         $q = $request->user()->notifications()->latest();
 
         if ($request->filled('type')) {
-            $q->where('data-type', $request->string('typr'));
+            $q->where('data-type', $request->string('type'));
         }
 
         if ($request->filled("unread")) {
