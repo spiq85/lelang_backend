@@ -13,6 +13,7 @@ class BidItem extends Model
     protected $fillable = [
         'bid_set_id',
         'lot_id',
+        'product_id',
         'bid_amount',
         'is_proxy'
     ];
@@ -26,5 +27,10 @@ class BidItem extends Model
     public function lot()
     { 
         return $this->belongsTo(BatchLot::class, 'lot_id');
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id');
     }
 }

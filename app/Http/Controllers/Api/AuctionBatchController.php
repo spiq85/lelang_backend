@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuctionBatch;
+use App\Models\BidItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -100,29 +101,43 @@ class AuctionBatchController extends Controller
                 'bidSets.items'
             ])->findOrFail($id);
 
-            // Get highest bid per lot
+            // Get highest bid per product in each lot
             $lotSummaries = [];
+            $highestMap = [];
             foreach ($batch->lots as $lot) {
-                $highest = $lot->bidItems()
-                    ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
-                    ->where('bid_sets.status', 'valid')
-                    ->orderByDesc('bid_amount')
-                    ->orderBy('bid_sets.submitted_at')
-                    ->first();
+                foreach ($lot->lotProducts as $lotProduct) {
+                    $product = $lotProduct->product;
+                    if (!$product) {
+                        continue;
+                    }
 
-                $lotSummaries[] = [
-                    'lot_id' => $lot->id,
-                    'lot_number' => $lot->lot_number,
-                    'current_highest' => $highest ? (float) $highest->bid_amount : 0,
-                ];
+                    $highest = BidItem::where('lot_id', $lot->id)
+                        ->where('product_id', $product->id)
+                        ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
+                        ->where('bid_sets.status', 'valid')
+                        ->max('bid_amount');
+
+                    $currentHighest = $highest ? (float) $highest : 0;
+                    $key = $lot->id . '-' . $product->id;
+                    $highestMap[$key] = $currentHighest;
+
+                    $lotSummaries[] = [
+                        'lot_id' => $lot->id,
+                        'product_id' => $product->id,
+                        'lot_number' => $lot->lot_number,
+                        'current_highest' => $currentHighest,
+                    ];
+                }
             }
 
             // Transform lots dengan FALLBACK LOGIC
             $lotsWithProducts = [];
             foreach ($batch->lots as $lot) {
                 // FIX: Ambil SEMUA products dalam lot dengan harga per-product dari batch_lot_products
-                $allProducts = $lot->lotProducts->map(function($lotProduct) {
+                $allProducts = $lot->lotProducts->map(function($lotProduct) use ($highestMap) {
                     $product = $lotProduct->product;
+                    $key = $product ? $lotProduct->batch_lot_id . '-' . $product->id : null;
+                    $currentHighest = $key && isset($highestMap[$key]) ? $highestMap[$key] : 0;
                     return $product ? [
                         'id' => $product->id,
                         'product_name' => $product->product_name,
@@ -130,6 +145,7 @@ class AuctionBatchController extends Controller
                         'base_price' => $product->base_price ? (float) $product->base_price : 0,
                         'starting_price' => (float) ($lotProduct->starting_price ?? 0), // ✅ Dari batch_lot_products
                         'reserve_price' => $lotProduct->reserve_price ? (float) $lotProduct->reserve_price : null, // ✅ Dari batch_lot_products
+                        'current_highest' => $currentHighest,
                         'images' => $product->images->map(function($image) {
                             return [
                                 'id' => $image->id,

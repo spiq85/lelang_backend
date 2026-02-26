@@ -31,17 +31,25 @@ class BidSetController extends Controller
         // Validasi input
         $payload = $request->validate([
             'bid_amount' => 'required|numeric|min:1',
+            'product_id' => 'required|exists:products,id',
         ]);
 
         $bidAmount = (float) $payload['bid_amount'];
+        $productId = (int) $payload['product_id'];
+
+        $lotProduct = $lot->lotProducts()->where('product_id', $productId)->first();
+        if (!$lotProduct) {
+            return response()->json(['message' => 'Produk tidak ada di lot ini'], 422);
+        }
 
         // Ambil bid tertinggi sebelumnya
         $highest = BidItem::where('lot_id', $lot->id)
+            ->where('product_id', $productId)
             ->join('bid_sets', 'bid_sets.id', '=', 'bid_items.bid_set_id')
             ->where('bid_sets.status', 'valid')
             ->max('bid_amount');
 
-        $baseline = $highest ?? $lot->starting_price;
+        $baseline = $highest ?? (float) ($lotProduct->starting_price ?? $lot->starting_price);
         $minInc = 1; // minimal kenaikan bisa disesuaikan
 
         if ($bidAmount < $baseline + $minInc) {
@@ -62,6 +70,7 @@ class BidSetController extends Controller
         $bidItem = BidItem::create([
             'bid_set_id' => $bidSet->id,
             'lot_id'     => $lot->id,
+            'product_id' => $productId,
             'bid_amount' => $bidAmount,
         ]);
 

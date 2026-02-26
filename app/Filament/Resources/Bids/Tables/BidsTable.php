@@ -20,8 +20,11 @@ class BidsTable
                 TextColumn::make('user_id')
                     ->numeric()
                     ->sortable(),
-                TextColumn::make('bid_amount')
+                TextColumn::make('items_sum_bid_amount')
+                    ->label('Bid Items')
+                    ->sum('items', 'bid_amount')
                     ->numeric()
+                    ->money('IDR')
                     ->sortable(),
                 TextColumn::make('submitted_at')
                     ->dateTime()
