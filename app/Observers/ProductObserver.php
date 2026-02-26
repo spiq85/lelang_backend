@@ -19,15 +19,21 @@ class ProductObserver
                     ->where('id', '!=', $product->id)
                     ->increment('trending_order');
 
-                Product::where('is_trending', true)
-                    ->orderBy('trending_order', 'desc')
-                    ->skip(9) 
+                // Cap trending ke max 9: ambil ID produk posisi 10+ lalu update
+                $idsToRemove = Product::where('is_trending', true)
+                    ->where('id', '!=', $product->id)
+                    ->orderBy('trending_order')
+                    ->skip(9)
                     ->take(100)
-                    ->update([
+                    ->pluck('id');
+
+                if ($idsToRemove->isNotEmpty()) {
+                    Product::whereIn('id', $idsToRemove)->update([
                         'is_trending' => false,
                         'trending_at' => null,
                         'trending_order' => null,
                     ]);
+                }
             });
         }
 
