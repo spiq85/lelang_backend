@@ -17,7 +17,7 @@ class AuctionBatchController extends Controller
             'lots.lotProducts.product.categories',
             'seller' => fn($q) => $q->select('id', 'full_name')
         ])
-            ->where('status', 'published')
+            ->whereIn('status', ['published', 'closed'])
             ->latest('start_at')
             ->select('id', 'title', 'description', 'start_at', 'end_at', 'status', 'seller_id')
             ->paginate($request->integer('per_page', 15));
