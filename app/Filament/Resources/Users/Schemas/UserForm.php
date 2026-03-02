@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Users\Schemas;
 
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
@@ -28,11 +29,21 @@ class UserForm
                 TextInput::make('npwp'),
                 TextInput::make('phone_number')
                     ->tel(),
+                Select::make('role')
+                    ->label('Role')
+                    ->options([
+                        'admin' => 'Admin',
+                        'seller' => 'Seller',
+                        'bidder' => 'Bidder',
+                    ])
+                    ->required(),
                 CheckboxList::make('roles')
-                    ->label('Roles')
+                    ->label('Spatie Roles')
                     ->relationship('roles', 'name')
                     ->columns(2),
                 Toggle::make('is_active')
+                    ->label('Active')
+                    ->helperText('Untuk seller baru, aktifkan ini untuk approve akun mereka.')
                     ->required(),
                 DateTimePicker::make('email_verified_at'),
             ]);

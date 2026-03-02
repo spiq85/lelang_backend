@@ -21,11 +21,17 @@ class AuthController extends Controller
             'phone_number' => 'nullable|string|max:20',
             'npwp' => 'nullable|string|max:20',
             'password' => 'required|string|min:8|confirmed',
+            'role' => 'nullable|string|in:bidder,seller',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
+
+        $role = $request->input('role', 'bidder');
+        // Seller accounts require admin approval (is_active = false)
+        // Bidder accounts are active immediately
+        $isActive = $role === 'seller' ? false : true;
 
         $user = User::create([
             'full_name' => $request->full_name,
@@ -33,9 +39,18 @@ class AuthController extends Controller
             'phone_number' => $request->phone_number,
             'npwp' => $request->npwp,
             'password' => Hash::make($request->password),
-            'role' => 'bidder',
-            'is_active' => true,
+            'role' => $role,
+            'is_active' => $isActive,
         ]);
+
+        // If seller, don't issue token (account needs approval first)
+        if ($role === 'seller') {
+            return response()->json([
+                'message' => 'Pendaftaran sebagai seller berhasil. Akun Anda akan diverifikasi oleh admin.',
+                'requires_approval' => true,
+                'user' => $user,
+            ], 201);
+        }
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -69,8 +84,12 @@ class AuthController extends Controller
         }
 
         if (!$user->is_active) {
+            $message = $user->role === 'seller'
+                ? 'Akun seller Anda sedang menunggu verifikasi admin.'
+                : 'Your account is inactive';
             return response()->json([
-                'message' => 'Your account is inactive'
+                'message' => $message,
+                'requires_approval' => $user->role === 'seller',
             ], 403);
         }
 

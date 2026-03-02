@@ -68,8 +68,9 @@ class User extends Authenticatable implements FilamentUser, HasName
 
     public function canAccessPanel(Panel $panel): bool
     {
-        // misal, hanya user aktif yang bisa login
-        return in_array($this->role, ['admin', 'seller', 'super_admin']) && $this->is_active;
+        // Only admin and super_admin can access Filament panel
+        // Seller dashboard is now in the React frontend
+        return in_array($this->role, ['admin', 'super_admin']) && $this->is_active;
     }
 
     // Opsional fallback untuk kompatibilitas paket lain
